@@ -1,9 +1,33 @@
 import { config as carregarArquivoEnv } from 'dotenv';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 
 const PORTA_PADRAO = 3333;
-const CAMINHO_ENV = resolve(process.cwd(), '.env');
+const MARCADOR_RAIZ = 'tsconfig.base.json';
+const PROFUNDIDADE_MAXIMA_BUSCA_RAIZ = 6;
+
+function localizarRaizProjeto(inicio: string): string {
+  let atual = inicio;
+
+  for (let nivel = 0; nivel <= PROFUNDIDADE_MAXIMA_BUSCA_RAIZ; nivel += 1) {
+    if (existsSync(join(atual, MARCADOR_RAIZ))) return atual;
+
+    const pai = dirname(atual);
+    if (pai === atual) break;
+    atual = pai;
+  }
+
+  return inicio;
+}
+
+export const RAIZ_PROJETO = localizarRaizProjeto(process.cwd());
+
+export function resolverAPartirDaRaiz(caminho: string): string {
+  return resolve(RAIZ_PROJETO, caminho);
+}
+
+const CAMINHO_ENV = resolve(RAIZ_PROJETO, '.env');
 
 const esquemaAmbiente = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

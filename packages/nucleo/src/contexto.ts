@@ -1,5 +1,5 @@
 import { obterClientePrisma, type PrismaClient } from '@cutpro/banco';
-import { carregarAmbiente, type Ambiente } from '@cutpro/configuracao';
+import { carregarAmbiente, resolverAPartirDaRaiz, type Ambiente } from '@cutpro/configuracao';
 import { criarConexaoRedis, ProdutorFilas } from '@cutpro/filas';
 import {
   criarServicoArmazenamento,
@@ -10,7 +10,6 @@ import {
   type ServicoArmazenamentoArquivo,
   type ServicoVideo,
 } from '@cutpro/integracoes';
-import { resolve } from 'node:path';
 import { criarAvisoConexaoRedis } from './avisoConexao.js';
 import { criarRegistroLog, type RegistroLog } from './registroLog.js';
 
@@ -33,8 +32,8 @@ export function criarContextoAplicacao(servico: string): ContextoAplicacao {
   const log = criarRegistroLog({ servico, desenvolvimento: ambiente.NODE_ENV === 'development' });
   const conexaoRedis = criarConexaoRedis(ambiente.REDIS_URL, criarAvisoConexaoRedis(log));
   const filas = new ProdutorFilas(conexaoRedis);
-  const diretorioArmazenamentoLocal = resolve(process.cwd(), ambiente.ARMAZENAMENTO_LOCAL_DIRETORIO);
-  const diretorioCaptura = resolve(process.cwd(), ambiente.CAPTURA_DIRETORIO);
+  const diretorioArmazenamentoLocal = resolverAPartirDaRaiz(ambiente.ARMAZENAMENTO_LOCAL_DIRETORIO);
+  const diretorioCaptura = resolverAPartirDaRaiz(ambiente.CAPTURA_DIRETORIO);
 
   return {
     ambiente,
