@@ -1,0 +1,98 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cutpro-postgres
+    environment:
+      POSTGRES_USER: cutpro
+      POSTGRES_PASSWORD: cutpro
+      POSTGRES_DB: cutpro
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cutpro -d cutpro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: cutpro-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dados:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+    container_name: cutpro-api
+    command: npm run dev --workspace @cutpro/api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://cutpro:cutpro@postgres:5432/cutpro?schema=public
+      DIRECT_URL: postgresql://cutpro:cutpro@postgres:5432/cutpro?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3333:3333"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - armazenamento:/app/armazenamento
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+    container_name: cutpro-worker
+    command: npm run dev --workspace @cutpro/worker
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://cutpro:cutpro@postgres:5432/cutpro?schema=public
+      DIRECT_URL: postgresql://cutpro:cutpro@postgres:5432/cutpro?schema=public
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - armazenamento:/app/armazenamento
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  painel:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+    container_name: cutpro-painel
+    command: npm run dev --workspace @cutpro/painel -- --host 0.0.0.0
+    env_file:
+      - .env
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  postgres-dados:
+  redis-dados:
+  armazenamento:

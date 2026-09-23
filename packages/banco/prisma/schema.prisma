@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Plataforma {
+  TWITCH
+  KICK
+}
+
+enum StatusLive {
+  AO_VIVO
+  ENCERRADA
+  PROCESSANDO_VOD
+  ERRO
+}
+
+enum CategoriaReacao {
+  HUMOR
+  SURPRESA
+  HYPE
+  NEGATIVO
+  VITORIA
+  DERROTA
+  CONFUSAO
+  CHOQUE
+  NEUTRO
+}
+
+enum StatusCorte {
+  DETECTADO
+  AGUARDANDO_PROCESSAMENTO
+  PROCESSANDO
+  TRANSCREVENDO
+  GERANDO_LEGENDAS
+  RENDERIZANDO
+  PRONTO
+  APROVADO
+  REJEITADO
+  PUBLICANDO
+  PUBLICADO
+  ERRO
+}
+
+enum PlataformaPublicacao {
+  TIKTOK
+  INSTAGRAM_REELS
+  YOUTUBE_SHORTS
+}
+
+enum StatusPublicacao {
+  AGENDADA
+  ENVIANDO
+  PUBLICADA
+  FALHA
+  CANCELADA
+}
+
+enum ModoProcessamento {
+  ECONOMICO
+  BALANCEADO
+  QUALIDADE_MAXIMA
+}
+
+enum NivelEvento {
+  INFO
+  ALERTA
+  ERRO
+}
+
+model Canal {
+  id                       String            @id @default(uuid()) @db.Uuid
+  usuarioId                String?           @db.Uuid
+  nome                     String            @db.VarChar(120)
+  nomeExibicao             String?           @db.VarChar(120)
+  plataforma               Plataforma
+  identificadorExterno     String            @db.VarChar(120)
+  identificadorChat        String?           @db.VarChar(120)
+  url                      String            @db.VarChar(300)
+  urlAvatar                String?           @db.VarChar(500)
+  ativo                    Boolean           @default(true)
+  monitoramentoAtivo       Boolean           @default(true)
+  geracaoAutomaticaAtiva   Boolean           @default(false)
+  publicacaoAutomaticaAtiva Boolean          @default(false)
+  modoProcessamento        ModoProcessamento @default(BALANCEADO)
+  configuracao             Json              @default("{}")
+  dataCriacao              DateTime          @default(now())
+  dataAtualizacao          DateTime          @updatedAt
+
+  lives Live[]
+
+  @@unique([plataforma, identificadorExterno])
+  @@index([monitoramentoAtivo, ativo])
+  @@map("canais")
+}
+
+model Live {
+  id                   String     @id @default(uuid()) @db.Uuid
+  canalId              String     @db.Uuid
+  plataforma           Plataforma
+  identificadorExterno String     @db.VarChar(120)
+  titulo               String?    @db.VarChar(300)
+  categoria            String?    @db.VarChar(120)
+  inicio               DateTime
+  fim                  DateTime?
+  status               StatusLive @default(AO_VIVO)
+  urlVod               String?    @db.VarChar(500)
+  urlMiniatura         String?    @db.VarChar(500)
+  totalMensagens       Int        @default(0)
+  picoEspectadores     Int        @default(0)
+  ultimaAtividade      DateTime   @default(now())
+  dataCriacao          DateTime   @default(now())
+
+  canal            Canal              @relation(fields: [canalId], references: [id], onDelete: Cascade)
+  mensagens        MensagemChat[]
+  buckets          BucketChat[]
+  momentos         MomentoDetectado[]
+  cortes           Corte[]
+  eventos          EventoPipeline[]
+  amostrasAudiencia AmostraAudiencia[]
+
+  @@unique([plataforma, identificadorExterno])
+  @@index([canalId, inicio])
+  @@index([status])
+  @@map("lives")
+}
+
+model MensagemChat {
+  id              BigInt          @id @default(autoincrement())
+  liveId          String          @db.Uuid
+  usuario         String          @db.VarChar(120)
+  mensagem        String          @db.VarChar(500)
+  dataHora        DateTime
+  offsetSegundos  Int
+  categoriaReacao CategoriaReacao @default(NEUTRO)
+  scoreReacao     Decimal         @default(0) @db.Decimal(5, 4)
+
+  live Live @relation(fields: [liveId], references: [id], onDelete: Cascade)
+
+  @@index([liveId, offsetSegundos])
+  @@index([liveId, categoriaReacao])
+  @@map("mensagens_chat")
+}
+
+model BucketChat {
+  id                        BigInt          @id @default(autoincrement())
+  liveId                    String          @db.Uuid
+  indice                    Int
+  inicioSegundos            Int
+  quantidadeMensagens       Int             @default(0)
+  quantidadeMensagensComReacao Int          @default(0)
+  somaScoreReacao           Decimal         @default(0) @db.Decimal(10, 4)
+  categoriaDominante        CategoriaReacao @default(NEUTRO)
+  analisado                 Boolean         @default(false)
+
+  live Live @relation(fields: [liveId], references: [id], onDelete: Cascade)
+
+  @@unique([liveId, indice])
+  @@index([liveId, analisado])
+  @@map("buckets_chat")
+}
+
+model AmostraAudiencia {
+  id             BigInt   @id @default(autoincrement())
+  liveId         String   @db.Uuid
+  offsetSegundos Int
+  espectadores   Int
+  dataHora       DateTime @default(now())
+
+  live Live @relation(fields: [liveId], references: [id], onDelete: Cascade)
+
+  @@unique([liveId, offsetSegundos])
+  @@map("amostras_audiencia")
+}
+
+model MomentoDetectado {
+  id                   String          @id @default(uuid()) @db.Uuid
+  liveId               String          @db.Uuid
+  instantePicoSegundos Int
+  inicioSegundos       Int
+  fimSegundos          Int
+  chatScore            Decimal         @default(0) @db.Decimal(5, 4)
+  audioScore           Decimal?        @db.Decimal(5, 4)
+  transcricaoScore     Decimal?        @db.Decimal(5, 4)
+  visualScore          Decimal?        @db.Decimal(5, 4)
+  espectadoresScore    Decimal?        @db.Decimal(5, 4)
+  clipScore            Decimal         @default(0) @db.Decimal(5, 4)
+  categoriaDominante   CategoriaReacao @default(NEUTRO)
+  quantidadeMensagens  Int             @default(0)
+  mensagensPorMinuto   Int             @default(0)
+  baselineMensagensPorMinuto Int       @default(0)
+  motivos              Json            @default("[]")
+  analisadoPorIa       Boolean         @default(false)
+  processado           Boolean         @default(false)
+  dataCriacao          DateTime        @default(now())
+
+  live  Live   @relation(fields: [liveId], references: [id], onDelete: Cascade)
+  corte Corte?
+
+  @@unique([liveId, instantePicoSegundos])
+  @@index([liveId, processado])
+  @@index([clipScore])
+  @@map("momentos_detectados")
+}
+
+model Corte {
+  id                 String      @id @default(uuid()) @db.Uuid
+  liveId             String      @db.Uuid
+  momentoDetectadoId String      @unique @db.Uuid
+  titulo             String?     @db.VarChar(200)
+  descricao          String?     @db.VarChar(1000)
+  hashtags           Json        @default("[]")
+  inicioSegundos     Int
+  fimSegundos        Int
+  duracaoSegundos    Int
+  template           String      @default("VERTICAL_PADRAO") @db.VarChar(60)
+  caminhoArquivoBruto String?    @db.VarChar(500)
+  caminhoArquivo     String?     @db.VarChar(500)
+  caminhoMiniatura   String?     @db.VarChar(500)
+  caminhoLegenda     String?     @db.VarChar(500)
+  clipScore          Decimal     @default(0) @db.Decimal(5, 4)
+  status             StatusCorte @default(DETECTADO)
+  mensagemErro       String?     @db.VarChar(1000)
+  tentativas         Int         @default(0)
+  dataCriacao        DateTime    @default(now())
+  dataAtualizacao    DateTime    @updatedAt
+
+  live        Live             @relation(fields: [liveId], references: [id], onDelete: Cascade)
+  momento     MomentoDetectado @relation(fields: [momentoDetectadoId], references: [id], onDelete: Cascade)
+  transcricao Transcricao?
+  publicacoes Publicacao[]
+  eventos     EventoPipeline[]
+
+  @@index([status, dataCriacao])
+  @@index([liveId])
+  @@map("cortes")
+}
+
+model Transcricao {
+  id             String   @id @default(uuid()) @db.Uuid
+  corteId        String   @unique @db.Uuid
+  provedor       String   @db.VarChar(60)
+  idioma         String   @default("pt") @db.VarChar(10)
+  texto          String
+  palavras       Json     @default("[]")
+  dataCriacao    DateTime @default(now())
+
+  corte Corte @relation(fields: [corteId], references: [id], onDelete: Cascade)
+
+  @@map("transcricoes")
+}
+
+model Publicacao {
+  id             String               @id @default(uuid()) @db.Uuid
+  corteId        String               @db.Uuid
+  plataforma     PlataformaPublicacao
+  status         StatusPublicacao     @default(AGENDADA)
+  url            String?              @db.VarChar(500)
+  idExterno      String?              @db.VarChar(200)
+  visualizacoes  Int?
+  erro           String?              @db.VarChar(1000)
+  agendadaPara   DateTime?
+  dataPublicacao DateTime?
+  dataCriacao    DateTime             @default(now())
+
+  corte Corte @relation(fields: [corteId], references: [id], onDelete: Cascade)
+
+  @@index([status, agendadaPara])
+  @@index([corteId])
+  @@map("publicacoes")
+}
+
+model EventoPipeline {
+  id          BigInt      @id @default(autoincrement())
+  liveId      String?     @db.Uuid
+  corteId     String?     @db.Uuid
+  etapa       String      @db.VarChar(60)
+  nivel       NivelEvento @default(INFO)
+  mensagem    String      @db.VarChar(500)
+  contexto    Json        @default("{}")
+  dataCriacao DateTime    @default(now())
+
+  live  Live?  @relation(fields: [liveId], references: [id], onDelete: Cascade)
+  corte Corte? @relation(fields: [corteId], references: [id], onDelete: Cascade)
+
+  @@index([liveId, dataCriacao])
+  @@index([corteId, dataCriacao])
+  @@map("eventos_pipeline")
+}

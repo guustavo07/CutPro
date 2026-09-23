@@ -1,0 +1,27 @@
+{
+  "name": "@cutpro/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/principal.ts",
+    "start": "tsx src/principal.ts",
+    "build": "tsc -p tsconfig.json",
+    "demonstrar": "tsx src/demonstracao.ts"
+  },
+  "dependencies": {
+    "@cutpro/banco": "*",
+    "@cutpro/configuracao": "*",
+    "@cutpro/contratos": "*",
+    "@cutpro/dominio": "*",
+    "@cutpro/filas": "*",
+    "@cutpro/integracoes": "*",
+    "@cutpro/nucleo": "*",
+    "bullmq": "5.28.1",
+    "ioredis": "5.4.1"
+  },
+  "devDependencies": {
+    "tsx": "4.19.2",
+    "typescript": "5.6.3"
+  }
+}

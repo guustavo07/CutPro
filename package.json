@@ -1,0 +1,29 @@
+{
+  "name": "cutpro",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev:api": "npm run dev --workspace @cutpro/api",
+    "dev:worker": "npm run dev --workspace @cutpro/worker",
+    "dev:painel": "npm run dev --workspace @cutpro/painel",
+    "banco:gerar": "npm run gerar --workspace @cutpro/banco",
+    "banco:migrar": "npm run migrar --workspace @cutpro/banco",
+    "banco:estudio": "npm run estudio --workspace @cutpro/banco",
+    "teste": "npm run teste --workspaces --if-present",
+    "lint": "tsc --noEmit -p tsconfig.base.json"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "vitest": "2.1.4",
+    "tsx": "4.19.2"
+  }
+}

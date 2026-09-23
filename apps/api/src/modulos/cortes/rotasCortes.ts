@@ -1,0 +1,45 @@
+import { esquemaAtualizarCorte, esquemaListarCortes } from '@cutpro/contratos';
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import type { ContextoAplicacao } from '@cutpro/nucleo';
+import { erroRequisicaoInvalida } from '../../infra/erros.js';
+import { RepositorioCortes } from './repositorioCortes.js';
+import { ServicoCortes } from './servicoCortes.js';
+
+const esquemaParametroId = z.object({ id: z.string().uuid() });
+
+function interpretar<E extends z.ZodTypeAny>(esquema: E, valor: unknown): z.output<E> {
+  const resultado = esquema.safeParse(valor);
+  if (!resultado.success) throw erroRequisicaoInvalida('Dados inválidos', resultado.error.flatten());
+
+  return resultado.data;
+}
+
+export async function registrarRotasCortes(app: FastifyInstance, contexto: ContextoAplicacao): Promise<void> {
+  const servico = new ServicoCortes(
+    new RepositorioCortes(contexto.prisma),
+    contexto.armazenamento,
+    contexto.filas,
+  );
+
+  app.get('/cortes', async (requisicao) => servico.listar(interpretar(esquemaListarCortes, requisicao.query)));
+
+  app.get('/cortes/:id', async (requisicao) => servico.obter(interpretar(esquemaParametroId, requisicao.params).id));
+
+  app.patch('/cortes/:id', async (requisicao) => {
+    const { id } = interpretar(esquemaParametroId, requisicao.params);
+    return servico.atualizar(id, interpretar(esquemaAtualizarCorte, requisicao.body));
+  });
+
+  app.post('/cortes/:id/aprovar', async (requisicao) =>
+    servico.aprovar(interpretar(esquemaParametroId, requisicao.params).id),
+  );
+
+  app.post('/cortes/:id/rejeitar', async (requisicao) =>
+    servico.rejeitar(interpretar(esquemaParametroId, requisicao.params).id),
+  );
+
+  app.post('/cortes/:id/regenerar', async (requisicao) =>
+    servico.regenerar(interpretar(esquemaParametroId, requisicao.params).id),
+  );
+}
