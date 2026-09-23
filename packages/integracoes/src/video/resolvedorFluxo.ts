@@ -32,7 +32,7 @@ export function montarUrlDoCanal(entrada: EntradaResolucaoFluxo): string | null 
 }
 
 export function montarArgumentosStreamlink(urlCanal: string, qualidade: string): readonly string[] {
-  return ['--stream-url', '--quiet', urlCanal, qualidade];
+  return ['--stream-url', urlCanal, qualidade];
 }
 
 export type OpcoesResolvedorStreamlink = {
