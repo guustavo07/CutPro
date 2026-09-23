@@ -83,25 +83,41 @@ export class CapturaLives {
     this.capturas.set(liveId, {
       processo,
       diretorio,
-      temporizador: setInterval(() => void this.limpar(liveId), INTERVALO_LIMPEZA_MS),
+      temporizador: setInterval(() => void this.limparTodosOsDiretorios(), INTERVALO_LIMPEZA_MS),
     });
     this.log.info({ liveId }, 'Captura de vídeo iniciada');
   }
 
-  private async limpar(liveId: string): Promise<void> {
-    const captura = this.capturas.get(liveId);
-    if (!captura) return;
+  private async limparTodosOsDiretorios(): Promise<void> {
+    const entradas = await readdir(this.opcoes.diretorioBase, { withFileTypes: true }).catch(() => []);
+    const diretorios = entradas.filter((entrada) => entrada.isDirectory());
 
-    const segmentos = listarSegmentosOrdenados(await readdir(captura.diretorio));
+    for (const diretorio of diretorios) {
+      await this.limparDiretorio(join(this.opcoes.diretorioBase, diretorio.name));
+    }
+  }
+
+  private async limparDiretorio(diretorio: string): Promise<void> {
+    const arquivos = await readdir(diretorio).catch(() => [] as string[]);
     const expirados = listarSegmentosExpirados({
-      segmentos,
+      segmentos: listarSegmentosOrdenados(arquivos),
       agora: new Date(),
       retencaoMinutos: this.opcoes.retencaoMinutos,
     });
 
-    await Promise.all(
-      expirados.map((segmento) => rm(join(captura.diretorio, segmento.nomeArquivo), { force: true })),
-    );
+    await Promise.all(expirados.map((segmento) => rm(join(diretorio, segmento.nomeArquivo), { force: true })));
+    await this.removerSeVazio(diretorio);
+  }
+
+  private async removerSeVazio(diretorio: string): Promise<void> {
+    const restantes = await readdir(diretorio).catch(() => ['nao-vazio']);
+    if (restantes.length > 0) return;
+
+    await rm(diretorio, { recursive: true, force: true });
+  }
+
+  private diretorioDaLive(liveId: string): string {
+    return join(this.opcoes.diretorioBase, liveId);
   }
 
   async extrairJanela(entrada: {
@@ -110,25 +126,28 @@ export class CapturaLives {
     readonly janela: { readonly inicioSegundos: number; readonly duracaoSegundos: number };
     readonly caminhoDestino: string;
   }): Promise<JanelaExtraida | null> {
-    const captura = this.capturas.get(entrada.liveId);
-    if (!captura) return null;
-
     const atrasoMs = this.opcoes.atrasoTransmissaoSegundos * MILISSEGUNDOS_POR_SEGUNDO;
     const inicioEm = new Date(
       entrada.inicioLive.getTime() + entrada.janela.inicioSegundos * MILISSEGUNDOS_POR_SEGUNDO - atrasoMs,
     );
     const fimEm = new Date(inicioEm.getTime() + entrada.janela.duracaoSegundos * MILISSEGUNDOS_POR_SEGUNDO);
 
-    return this.concatenarJanela({ captura, inicioEm, fimEm, caminhoDestino: entrada.caminhoDestino });
+    return this.concatenarJanela({
+      diretorio: this.diretorioDaLive(entrada.liveId),
+      inicioEm,
+      fimEm,
+      caminhoDestino: entrada.caminhoDestino,
+    });
   }
 
   private async concatenarJanela(entrada: {
-    readonly captura: CapturaAtiva;
+    readonly diretorio: string;
     readonly inicioEm: Date;
     readonly fimEm: Date;
     readonly caminhoDestino: string;
   }): Promise<JanelaExtraida | null> {
-    const segmentos = listarSegmentosOrdenados(await readdir(entrada.captura.diretorio));
+    const arquivos = await readdir(entrada.diretorio).catch(() => [] as string[]);
+    const segmentos = listarSegmentosOrdenados(arquivos);
     const selecionados = selecionarSegmentosDaJanela({
       segmentos,
       inicioEm: entrada.inicioEm,
@@ -137,8 +156,8 @@ export class CapturaLives {
     const primeiro = selecionados[0];
     if (!primeiro) return null;
 
-    const caminhoLista = join(entrada.captura.diretorio, NOME_LISTA_CONCATENACAO);
-    const caminhos = selecionados.map((segmento) => join(entrada.captura.diretorio, segmento.nomeArquivo));
+    const caminhoLista = join(entrada.diretorio, NOME_LISTA_CONCATENACAO);
+    const caminhos = selecionados.map((segmento) => join(entrada.diretorio, segmento.nomeArquivo));
     await writeFile(caminhoLista, montarConteudoListaConcatenacao(caminhos), 'utf8');
     await this.video.concatenar({ caminhoLista, caminhoDestino: entrada.caminhoDestino });
     await rm(caminhoLista, { force: true });
@@ -156,7 +175,7 @@ export class CapturaLives {
     clearInterval(captura.temporizador);
     captura.processo.kill();
     this.capturas.delete(liveId);
-    await rm(captura.diretorio, { recursive: true, force: true });
+    await this.limparDiretorio(this.diretorioDaLive(liveId));
   }
 
   async encerrarTudo(): Promise<void> {
