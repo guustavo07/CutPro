@@ -13,6 +13,14 @@ import { ConexaoChatKick } from './kickChat.js';
 
 const URL_BASE_CANAL = 'https://kick.com';
 
+export function montarIdentificadorLiveKick(dados: CanalKick): string {
+  const chave = dados.stream?.key?.trim();
+  if (chave) return chave;
+
+  const inicio = dados.stream?.start_time?.trim();
+  return `${dados.broadcaster_user_id}-${inicio ?? ''}`;
+}
+
 export type OpcoesKickService = {
   readonly credenciais: CredenciaisKick;
   readonly chavePusher: string;
@@ -58,7 +66,7 @@ export class KickService implements ServicoPlataformaStreaming {
     const stream = dados.stream;
 
     return {
-      identificadorExterno: stream?.key ?? `${dados.broadcaster_user_id}-${stream?.start_time ?? ''}`,
+      identificadorExterno: montarIdentificadorLiveKick(dados),
       titulo: dados.stream_title,
       categoria: dados.category?.name ?? null,
       inicio: stream?.start_time ? new Date(stream.start_time) : new Date(),

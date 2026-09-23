@@ -90,6 +90,7 @@ function FormularioCanal({ aoCriar }: { readonly aoCriar: (dados: { identificado
 export function Canais() {
   const clienteConsulta = useQueryClient();
   const [erro, definirErro] = useState<string | null>(null);
+  const [confirmandoRemocao, definirConfirmandoRemocao] = useState<string | null>(null);
 
   const canais = useQuery({ queryKey: ['canais'], queryFn: () => clienteApi.buscar<Canal[]>('/canais') });
 
@@ -113,7 +114,13 @@ export function Canais() {
 
   const remover = useMutation({
     mutationFn: (id: string) => clienteApi.remover(`/canais/${id}`),
-    onSuccess: invalidar,
+    onSuccess: () => {
+      definirErro(null);
+      definirConfirmandoRemocao(null);
+      void invalidar();
+    },
+    onError: (falha: unknown) =>
+      definirErro(falha instanceof ErroApi ? falha.message : 'Falha ao remover o canal'),
   });
 
   return (
@@ -140,13 +147,36 @@ export function Canais() {
                     {canal.url}
                   </a>
                 </div>
-                <button
-                  type="button"
-                  className="text-xs text-textoSecundario hover:text-red-300"
-                  onClick={() => remover.mutate(canal.id)}
-                >
-                  remover
-                </button>
+                {confirmandoRemocao === canal.id ? (
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-xs text-red-300">Apaga lives e cortes deste canal.</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="text-xs text-red-300 hover:underline"
+                        disabled={remover.isPending}
+                        onClick={() => remover.mutate(canal.id)}
+                      >
+                        {remover.isPending ? 'removendo...' : 'confirmar'}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-textoSecundario hover:underline"
+                        onClick={() => definirConfirmandoRemocao(null)}
+                      >
+                        cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs text-textoSecundario hover:text-red-300"
+                    onClick={() => definirConfirmandoRemocao(canal.id)}
+                  >
+                    remover
+                  </button>
+                )}
               </div>
               <div className="mt-4 flex flex-wrap gap-4">
                 {INTERRUPTORES.map((item) => (
