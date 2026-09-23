@@ -22,9 +22,7 @@ export function Layout({ children }: { readonly children: ReactNode }) {
     <div className="flex min-h-screen flex-col lg:flex-row">
       <aside className="border-b border-borda bg-superficie lg:min-h-screen lg:w-60 lg:border-b-0 lg:border-r">
         <div className="flex items-center gap-2 px-5 py-5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-destaque text-sm font-bold">
-            C
-          </span>
+          <img src="/marca.png" alt="CutPro" className="h-8 w-8 rounded-lg" />
           <span className="text-base font-semibold tracking-tight">CutPro</span>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-4 lg:flex-col lg:overflow-visible">

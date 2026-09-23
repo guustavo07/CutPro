@@ -178,7 +178,14 @@ function montarPng(pixels: Buffer): Buffer {
   ]);
 }
 
-const destino = resolve(process.argv[2] ?? 'ativos/marca.png');
-await mkdir(dirname(destino), { recursive: true });
-await writeFile(destino, montarPng(montarPixels()));
-process.stdout.write(`marca gerada em ${destino}\n`);
+const DESTINOS_PADRAO = ['ativos/marca.png', 'apps/painel/public/marca.png'];
+
+const destinos = process.argv.length > 2 ? process.argv.slice(2) : DESTINOS_PADRAO;
+const conteudo = montarPng(montarPixels());
+
+for (const caminho of destinos) {
+  const destino = resolve(caminho);
+  await mkdir(dirname(destino), { recursive: true });
+  await writeFile(destino, conteudo);
+  process.stdout.write(`marca gerada em ${destino}\n`);
+}
