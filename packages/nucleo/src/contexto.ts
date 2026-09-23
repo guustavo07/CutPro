@@ -4,7 +4,9 @@ import { criarConexaoRedis, ProdutorFilas } from '@cutpro/filas';
 import {
   criarServicoArmazenamento,
   FabricaPlataformas,
+  ServicoVideoFfmpeg,
   type ServicoArmazenamentoArquivo,
+  type ServicoVideo,
 } from '@cutpro/integracoes';
 import { resolve } from 'node:path';
 import { criarAvisoConexaoRedis } from './avisoConexao.js';
@@ -16,6 +18,7 @@ export type ContextoAplicacao = {
   readonly filas: ProdutorFilas;
   readonly plataformas: FabricaPlataformas;
   readonly armazenamento: ServicoArmazenamentoArquivo;
+  readonly video: ServicoVideo;
   readonly log: RegistroLog;
   readonly diretorioArmazenamentoLocal: string;
   encerrar(): Promise<void>;
@@ -34,6 +37,10 @@ export function criarContextoAplicacao(servico: string): ContextoAplicacao {
     filas,
     plataformas: montarFabricaPlataformas(ambiente),
     armazenamento: montarArmazenamento(ambiente, diretorioArmazenamentoLocal),
+    video: new ServicoVideoFfmpeg({
+      caminhoFfmpeg: ambiente.FFMPEG_CAMINHO,
+      caminhoFfprobe: ambiente.FFPROBE_CAMINHO,
+    }),
     log,
     diretorioArmazenamentoLocal,
     encerrar: async () => {

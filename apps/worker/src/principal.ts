@@ -5,6 +5,7 @@ import {
   NomeJob,
   type PayloadAnalisarMomentos,
   type PayloadDetectarLives,
+  type PayloadProcessarCorte,
 } from '@cutpro/contratos';
 import { criarConexaoRedis } from '@cutpro/filas';
 import { criarContextoAplicacao, type ContextoAplicacao } from '@cutpro/nucleo';
@@ -13,9 +14,11 @@ import { ColetorChat } from './servicos/coletorChat.js';
 import { RegistroEventos } from './servicos/registroEventos.js';
 import { ServicoAnaliseMomentos } from './servicos/servicoAnaliseMomentos.js';
 import { ServicoMonitoramentoLives } from './servicos/servicoMonitoramentoLives.js';
+import { ServicoProcessamentoCorte } from './servicos/servicoProcessamentoCorte.js';
 
 const CONCORRENCIA_MONITORAMENTO = 1;
 const CONCORRENCIA_ANALISE = 4;
+const CONCORRENCIA_PROCESSAMENTO = 2;
 const SINAIS_ENCERRAMENTO = ['SIGINT', 'SIGTERM'] as const;
 
 function montarServicos(contexto: ContextoAplicacao) {
@@ -33,6 +36,16 @@ function montarServicos(contexto: ContextoAplicacao) {
       contexto.log,
     ),
     analise: new ServicoAnaliseMomentos(contexto.prisma, contexto.filas, eventos, contexto.log),
+    processamento: new ServicoProcessamentoCorte(
+      contexto.prisma,
+      {
+        video: contexto.video,
+        armazenamento: contexto.armazenamento,
+        eventos,
+        log: contexto.log,
+      },
+      contexto.diretorioArmazenamentoLocal,
+    ),
   };
 }
 
@@ -59,7 +72,17 @@ async function iniciar(): Promise<void> {
     { connection: conexao, concurrency: CONCORRENCIA_ANALISE },
   );
 
-  registrarFalhas(contexto, [workerMonitoramento, workerAnalise]);
+  const workerProcessamento = new Worker(
+    NomeFila.PROCESSAMENTO_VIDEO,
+    async (job) => {
+      const dados = job.data as PayloadProcessarCorte;
+      await servicos.processamento.processar(dados.corteId);
+    },
+    { connection: conexao, concurrency: CONCORRENCIA_PROCESSAMENTO },
+  );
+
+  const workers = [workerMonitoramento, workerAnalise, workerProcessamento];
+  registrarFalhas(contexto, workers);
 
   await contexto.filas.agendarRepeticao({
     fila: NomeFila.MONITORAMENTO_LIVES,
@@ -69,7 +92,7 @@ async function iniciar(): Promise<void> {
   });
 
   contexto.log.info({ modoSimulado: contexto.ambiente.PLATAFORMA_MODO_SIMULADO }, 'Worker do CutPro iniciado');
-  configurarEncerramento({ contexto, workers: [workerMonitoramento, workerAnalise], coletor: servicos.coletor });
+  configurarEncerramento({ contexto, workers, coletor: servicos.coletor });
 }
 
 function registrarFalhas(contexto: ContextoAplicacao, workers: readonly Worker[]): void {

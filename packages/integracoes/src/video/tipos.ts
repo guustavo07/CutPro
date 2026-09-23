@@ -1,0 +1,46 @@
+export const TemplateEnquadramento = Object.freeze({
+  VERTICAL_PADRAO: 'VERTICAL_PADRAO',
+  GAMEPLAY_CENTRAL: 'GAMEPLAY_CENTRAL',
+  WEBCAM_DESTAQUE: 'WEBCAM_DESTAQUE',
+  TELA_CHEIA: 'TELA_CHEIA',
+});
+
+export type TemplateEnquadramento = (typeof TemplateEnquadramento)[keyof typeof TemplateEnquadramento];
+
+export type EntradaRecorte = {
+  readonly caminhoOrigem: string;
+  readonly caminhoDestino: string;
+  readonly inicioSegundos: number;
+  readonly duracaoSegundos: number;
+};
+
+export type EntradaEnquadramento = {
+  readonly caminhoOrigem: string;
+  readonly caminhoDestino: string;
+  readonly template: TemplateEnquadramento;
+  readonly caminhoLegenda?: string;
+};
+
+export type EntradaMiniatura = {
+  readonly caminhoOrigem: string;
+  readonly caminhoDestino: string;
+  readonly instanteSegundos: number;
+};
+
+export interface ServicoVideo {
+  recortar(entrada: EntradaRecorte): Promise<void>;
+  enquadrarVertical(entrada: EntradaEnquadramento): Promise<void>;
+  gerarMiniatura(entrada: EntradaMiniatura): Promise<void>;
+  obterDuracaoSegundos(caminhoOrigem: string): Promise<number>;
+}
+
+export class ErroProcessamentoVideo extends Error {
+  constructor(
+    readonly comando: string,
+    readonly codigoSaida: number | null,
+    detalhe: string,
+  ) {
+    super(`Falha no ${comando} (código ${codigoSaida ?? 'desconhecido'}): ${detalhe}`);
+    this.name = 'ErroProcessamentoVideo';
+  }
+}

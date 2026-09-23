@@ -8,7 +8,9 @@ export const EtapaPipeline = Object.freeze({
   PICO_DETECTADO: 'pico-detectado',
   CANDIDATO_CRIADO: 'candidato-criado',
   CORTE_ENFILEIRADO: 'corte-enfileirado',
+  CORTE_PRONTO: 'corte-pronto',
   FALHA_PLATAFORMA: 'falha-plataforma',
+  FALHA_PROCESSAMENTO: 'falha-processamento',
 });
 
 export type EtapaPipeline = (typeof EtapaPipeline)[keyof typeof EtapaPipeline];

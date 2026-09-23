@@ -12,3 +12,7 @@ export * from './armazenamento/tipos.js';
 export * from './armazenamento/armazenamentoLocal.js';
 export * from './armazenamento/armazenamentoSupabase.js';
 export * from './armazenamento/fabricaArmazenamento.js';
+
+export * from './video/tipos.js';
+export * from './video/argumentosFfmpeg.js';
+export * from './video/servicoVideoFfmpeg.js';
