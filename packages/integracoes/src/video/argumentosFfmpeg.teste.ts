@@ -1,10 +1,11 @@
-import { ALTURA_VERTICAL, LARGURA_VERTICAL } from '@cutpro/dominio';
+import { ALTURA_VERTICAL, LARGURA_VERTICAL, REGIAO_WEBCAM_PADRAO } from '@cutpro/dominio';
 import { describe, expect, it } from 'vitest';
 import {
   montarArgumentosDuracao,
   montarArgumentosEnquadramento,
   montarArgumentosMiniatura,
   montarArgumentosRecorte,
+  montarCadeiaEnquadramento,
   montarFiltroEnquadramento,
 } from './argumentosFfmpeg.js';
 import { TemplateEnquadramento } from './tipos.js';
@@ -45,7 +46,7 @@ describe('recorte do trecho', () => {
 
 describe('filtros de enquadramento vertical', () => {
   it('tem um filtro próprio para cada template', () => {
-    const filtros = Object.values(TemplateEnquadramento).map(montarFiltroEnquadramento);
+    const filtros = Object.values(TemplateEnquadramento).map((template) => montarFiltroEnquadramento(template));
     expect(new Set(filtros).size).toBe(Object.values(TemplateEnquadramento).length);
   });
 
@@ -70,6 +71,34 @@ describe('filtros de enquadramento vertical', () => {
   it('webcam em destaque empilha duas faixas', () => {
     const filtro = montarFiltroEnquadramento(TemplateEnquadramento.WEBCAM_DESTAQUE);
     expect(filtro).toContain('vstack=inputs=2');
+  });
+
+  it('webcam em destaque recorta a região configurada do canal', () => {
+    const filtro = montarFiltroEnquadramento(TemplateEnquadramento.WEBCAM_DESTAQUE, {
+      x: 0.02,
+      y: 0.05,
+      largura: 0.31,
+      altura: 0.28,
+    });
+
+    expect(filtro).toContain('crop=iw*0.31:ih*0.28:iw*0.02:ih*0.05');
+  });
+
+  it('usa a região padrão quando o canal não define uma', () => {
+    const filtro = montarFiltroEnquadramento(TemplateEnquadramento.WEBCAM_DESTAQUE);
+    expect(filtro).toContain(`crop=iw*${REGIAO_WEBCAM_PADRAO.largura}:ih*${REGIAO_WEBCAM_PADRAO.altura}`);
+  });
+
+  it('a soma das duas faixas preenche a altura vertical inteira', () => {
+    const filtro = montarFiltroEnquadramento(TemplateEnquadramento.WEBCAM_DESTAQUE);
+    const alturas = [...filtro.matchAll(new RegExp(`crop=${LARGURA_VERTICAL}:(\\d+)`, 'g'))].map((item) =>
+      Number(item[1]),
+    );
+    const escalas = [...filtro.matchAll(new RegExp(`scale=${LARGURA_VERTICAL}:(\\d+)`, 'g'))].map((item) =>
+      Number(item[1]),
+    );
+
+    expect(alturas[0]! + escalas[escalas.length - 1]!).toBe(ALTURA_VERTICAL);
   });
 
   it('cai no template padrão quando o valor é desconhecido', () => {
@@ -133,5 +162,40 @@ describe('miniatura e duração', () => {
     const argumentos = montarArgumentosDuracao(ORIGEM);
     expect(valorDoParametro(argumentos, '-show_entries')).toBe('format=duration');
     expect(argumentos[argumentos.length - 1]).toBe(ORIGEM);
+  });
+});
+
+describe('sobreposição da marca', () => {
+  const base = {
+    caminhoOrigem: ORIGEM,
+    caminhoDestino: DESTINO,
+    template: TemplateEnquadramento.TELA_CHEIA,
+  };
+
+  it('não adiciona segunda entrada quando não há marca', () => {
+    const argumentos = montarArgumentosEnquadramento(base);
+    expect(argumentos.filter((item) => item === '-i')).toHaveLength(1);
+  });
+
+  it('adiciona a marca como segunda entrada', () => {
+    const argumentos = montarArgumentosEnquadramento({ ...base, caminhoMarca: '/tmp/marca.png' });
+    expect(argumentos.filter((item) => item === '-i')).toHaveLength(2);
+    expect(argumentos).toContain('/tmp/marca.png');
+  });
+
+  it('sobrepõe a marca no canto superior direito', () => {
+    const cadeia = montarCadeiaEnquadramento({ ...base, caminhoMarca: '/tmp/marca.png' });
+    expect(cadeia).toContain('[1:v]');
+    expect(cadeia).toMatch(/overlay=W-w-\d+:\d+/);
+  });
+
+  it('aplica a marca depois da legenda, para não ficar embaixo dela', () => {
+    const cadeia = montarCadeiaEnquadramento({
+      ...base,
+      caminhoMarca: '/tmp/marca.png',
+      caminhoLegenda: '/tmp/legenda.ass',
+    });
+
+    expect(cadeia.indexOf('subtitles=')).toBeLessThan(cadeia.indexOf('overlay=W-w'));
   });
 });

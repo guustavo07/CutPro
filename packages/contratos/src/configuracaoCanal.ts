@@ -4,7 +4,9 @@ import {
   DURACAO_MAXIMA_SEGUNDOS_PADRAO,
   DURACAO_MINIMA_SEGUNDOS_PADRAO,
   ModoProcessamento,
+  DESLOCAMENTO_GAMEPLAY_PADRAO,
   PESOS_CLIPSCORE_PADRAO,
+  REGIAO_WEBCAM_PADRAO,
   SEGUNDOS_ANTES_PADRAO,
   SEGUNDOS_DEPOIS_PADRAO,
 } from '@cutpro/dominio';
@@ -26,6 +28,16 @@ const DURACAO_MAXIMA_PERMITIDA = 180;
 const CORTES_MAXIMOS_PERMITIDOS = 100;
 const PESO_MINIMO = 0;
 const PESO_MAXIMO = 1;
+
+const FRACAO_MINIMA = 0;
+const FRACAO_MAXIMA = 1;
+
+const esquemaRegiaoWebcam = z.object({
+  x: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+  y: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+  largura: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+  altura: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+});
 
 const esquemaPesos = z.object({
   chat: z.number().min(PESO_MINIMO).max(PESO_MAXIMO),
@@ -78,6 +90,17 @@ export const esquemaConfiguracaoCanal = z
       visual: PESOS_CLIPSCORE_PADRAO.visual,
       espectadores: PESOS_CLIPSCORE_PADRAO.espectadores,
     }),
+    regiaoWebcam: esquemaRegiaoWebcam.default({
+      x: REGIAO_WEBCAM_PADRAO.x,
+      y: REGIAO_WEBCAM_PADRAO.y,
+      largura: REGIAO_WEBCAM_PADRAO.largura,
+      altura: REGIAO_WEBCAM_PADRAO.altura,
+    }),
+    deslocamentoGameplay: z
+      .number()
+      .min(FRACAO_MINIMA)
+      .max(FRACAO_MAXIMA)
+      .default(DESLOCAMENTO_GAMEPLAY_PADRAO),
     publicacaoDiariaMaxima: z.number().int().min(0).max(CORTES_MAXIMOS_PERMITIDOS).default(3),
     hashtagsPadrao: z.array(z.string().max(40)).max(20).default([]),
   })

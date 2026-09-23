@@ -13,6 +13,8 @@ import {
 import { criarAvisoConexaoRedis } from './avisoConexao.js';
 import { criarRegistroLog, type RegistroLog } from './registroLog.js';
 
+const CAMINHO_MARCA = 'ativos/marca.png';
+
 export type ContextoAplicacao = {
   readonly ambiente: Ambiente;
   readonly prisma: PrismaClient;
@@ -24,6 +26,7 @@ export type ContextoAplicacao = {
   readonly log: RegistroLog;
   readonly diretorioArmazenamentoLocal: string;
   readonly diretorioCaptura: string;
+  readonly caminhoMarca: string;
   encerrar(): Promise<void>;
 };
 
@@ -49,6 +52,7 @@ export function criarContextoAplicacao(servico: string): ContextoAplicacao {
     log,
     diretorioArmazenamentoLocal,
     diretorioCaptura,
+    caminhoMarca: resolverAPartirDaRaiz(CAMINHO_MARCA),
     encerrar: async () => {
       await filas.encerrar();
       conexaoRedis.disconnect();

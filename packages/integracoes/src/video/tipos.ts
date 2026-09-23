@@ -1,3 +1,5 @@
+import type { RegiaoWebcam } from '@cutpro/dominio';
+
 export const TemplateEnquadramento = Object.freeze({
   VERTICAL_PADRAO: 'VERTICAL_PADRAO',
   GAMEPLAY_CENTRAL: 'GAMEPLAY_CENTRAL',
@@ -18,6 +20,9 @@ export type EntradaEnquadramento = {
   readonly caminhoOrigem: string;
   readonly caminhoDestino: string;
   readonly template: TemplateEnquadramento;
+  readonly regiaoWebcam?: RegiaoWebcam;
+  readonly deslocamentoGameplay?: number;
+  readonly caminhoMarca?: string;
   readonly caminhoLegenda?: string;
 };
 

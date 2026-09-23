@@ -57,6 +57,7 @@ function montarServicos(contexto: ContextoAplicacao) {
         video: contexto.video,
         armazenamento: contexto.armazenamento,
         captura,
+        caminhoMarca: contexto.caminhoMarca,
         eventos,
         log: contexto.log,
       },

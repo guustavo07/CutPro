@@ -1,4 +1,5 @@
 import { Prisma, StatusCorte, type PrismaClient } from '@cutpro/banco';
+import { interpretarConfiguracaoCanal } from '@cutpro/contratos';
 import { podeTransicionarCorte } from '@cutpro/dominio';
 import type { ServicoArmazenamentoArquivo, ServicoVideo, TemplateEnquadramento } from '@cutpro/integracoes';
 import type { RegistroLog } from '@cutpro/nucleo';
@@ -14,7 +15,7 @@ const PROPORCAO_INSTANTE_MINIATURA = 0.5;
 const MENSAGEM_SEM_VIDEO_BRUTO =
   'Vídeo bruto indisponível: o trecho não está no buffer de captura ou a captura está desligada.';
 
-type CorteComLive = Prisma.CorteGetPayload<{ include: { live: true } }>;
+type CorteComLive = Prisma.CorteGetPayload<{ include: { live: { include: { canal: true } } } }>;
 
 type OrigemVideo = {
   readonly caminho: string;
@@ -28,6 +29,7 @@ export class ServicoProcessamentoCorte {
       readonly video: ServicoVideo;
       readonly armazenamento: ServicoArmazenamentoArquivo;
       readonly captura: CapturaLives;
+      readonly caminhoMarca: string;
       readonly eventos: RegistroEventos;
       readonly log: RegistroLog;
     },
@@ -35,7 +37,10 @@ export class ServicoProcessamentoCorte {
   ) {}
 
   async processar(corteId: string): Promise<void> {
-    const corte = await this.prisma.corte.findUnique({ where: { id: corteId }, include: { live: true } });
+    const corte = await this.prisma.corte.findUnique({
+      where: { id: corteId },
+      include: { live: { include: { canal: true } } },
+    });
     if (!corte) return;
     if (!podeTransicionarCorte(corte.status, StatusCorte.PROCESSANDO)) return;
 
@@ -84,6 +89,7 @@ export class ServicoProcessamentoCorte {
     readonly pasta: string;
   }): Promise<void> {
     const { corte, origem, pasta } = entrada;
+    const configuracao = interpretarConfiguracaoCanal(corte.live.canal.configuracao);
     const trecho = join(pasta, 'trecho.mp4');
     const vertical = join(pasta, 'vertical.mp4');
     const miniatura = join(pasta, 'miniatura.jpg');
@@ -100,6 +106,9 @@ export class ServicoProcessamentoCorte {
       caminhoOrigem: trecho,
       caminhoDestino: vertical,
       template: corte.template as TemplateEnquadramento,
+      regiaoWebcam: configuracao.regiaoWebcam,
+      deslocamentoGameplay: configuracao.deslocamentoGameplay,
+      caminhoMarca: this.dependencias.caminhoMarca,
     });
     await this.dependencias.video.gerarMiniatura({
       caminhoOrigem: vertical,
