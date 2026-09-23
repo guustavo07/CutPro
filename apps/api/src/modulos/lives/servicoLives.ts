@@ -44,6 +44,10 @@ export class ServicoLives {
     return lives.map(montarRespostaLive);
   }
 
+  async reiniciarMetricas() {
+    return this.repositorio.reiniciarMetricas();
+  }
+
   async obter(id: string) {
     const live = await this.repositorio.obterPorId(id);
     if (!live) throw erroNaoEncontrado('Live não encontrada');

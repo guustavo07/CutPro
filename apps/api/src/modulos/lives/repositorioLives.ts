@@ -4,12 +4,20 @@ const LIVES_RECENTES_PADRAO = 20;
 
 export type LiveComContagens = Awaited<ReturnType<RepositorioLives['listarRecentes']>>[number];
 
+export type ResultadoReinicioMetricas = {
+  readonly mensagensRemovidas: number;
+  readonly bucketsRemovidos: number;
+  readonly amostrasRemovidas: number;
+  readonly momentosRemovidos: number;
+};
+
 export class RepositorioLives {
   constructor(private readonly prisma: PrismaClient) {}
 
   async listarRecentes(limite: number = LIVES_RECENTES_PADRAO) {
     return this.prisma.live.findMany({
       take: limite,
+      where: { canal: { monitoramentoAtivo: true } },
       orderBy: { inicio: 'desc' },
       include: {
         canal: { select: { id: true, nome: true, nomeExibicao: true, urlAvatar: true } },
@@ -49,5 +57,22 @@ export class RepositorioLives {
 
   async contarAoVivo(): Promise<number> {
     return this.prisma.live.count({ where: { status: StatusLive.AO_VIVO } });
+  }
+
+  async reiniciarMetricas(): Promise<ResultadoReinicioMetricas> {
+    const [mensagens, buckets, amostras, momentos] = await this.prisma.$transaction([
+      this.prisma.mensagemChat.deleteMany({}),
+      this.prisma.bucketChat.deleteMany({}),
+      this.prisma.amostraAudiencia.deleteMany({}),
+      this.prisma.momentoDetectado.deleteMany({ where: { corte: { is: null } } }),
+      this.prisma.live.updateMany({ data: { totalMensagens: 0, picoEspectadores: 0 } }),
+    ]);
+
+    return {
+      mensagensRemovidas: mensagens.count,
+      bucketsRemovidos: buckets.count,
+      amostrasRemovidas: amostras.count,
+      momentosRemovidos: momentos.count,
+    };
   }
 }

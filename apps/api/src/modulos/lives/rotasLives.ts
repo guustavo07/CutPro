@@ -21,6 +21,8 @@ export async function registrarRotasLives(app: FastifyInstance, contexto: Contex
 
   app.get('/lives/ao-vivo', async () => servico.listarAoVivo());
 
+  app.post('/lives/reiniciar-metricas', async () => servico.reiniciarMetricas());
+
   app.get('/lives/:id', async (requisicao) => servico.obter(interpretarId(requisicao.params)));
 
   app.get('/lives/:id/momentos', async (requisicao) => servico.listarMomentos(interpretarId(requisicao.params)));

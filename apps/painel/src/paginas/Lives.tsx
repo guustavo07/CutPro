@@ -1,63 +1,128 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { clienteApi } from '../api/clienteApi';
+import { clienteApi, ErroApi } from '../api/clienteApi';
 import type { Live, Momento } from '../api/tipos';
 import { EstadoVazio, Etiqueta, IndicadorScore } from '../componentes/Indicadores';
 import { TituloPagina } from '../componentes/Layout';
 import { formatarDuracao, formatarNumero } from '../utils/formatacao';
 
-export function Lives() {
-  const lives = useQuery({ queryKey: ['lives'], queryFn: () => clienteApi.buscar<Live[]>('/lives') });
+type ResultadoReinicio = {
+  mensagensRemovidas: number;
+  bucketsRemovidos: number;
+  amostrasRemovidas: number;
+  momentosRemovidos: number;
+};
 
-  if (!lives.data || lives.data.length === 0) {
+function BotaoReiniciarMetricas() {
+  const clienteConsulta = useQueryClient();
+  const [confirmando, definirConfirmando] = useState(false);
+  const [erro, definirErro] = useState<string | null>(null);
+  const [resumo, definirResumo] = useState<string | null>(null);
+
+  const reiniciar = useMutation({
+    mutationFn: () => clienteApi.executar<ResultadoReinicio>('/lives/reiniciar-metricas'),
+    onSuccess: (resultado) => {
+      definirErro(null);
+      definirConfirmando(false);
+      definirResumo(
+        `${formatarNumero(resultado.mensagensRemovidas)} mensagens, ${formatarNumero(resultado.bucketsRemovidos)} buckets e ${resultado.momentosRemovidos} momentos removidos. Cortes preservados.`,
+      );
+      void clienteConsulta.invalidateQueries();
+    },
+    onError: (falha: unknown) =>
+      definirErro(falha instanceof ErroApi ? falha.message : 'Falha ao reiniciar as métricas'),
+  });
+
+  if (!confirmando) {
     return (
-      <>
-        <TituloPagina titulo="Lives" />
-        <EstadoVazio mensagem="Nenhuma live registrada ainda." />
-      </>
+      <div className="flex flex-col gap-2">
+        <button type="button" className="botao-secundario w-full sm:w-auto" onClick={() => definirConfirmando(true)}>
+          Reiniciar métricas
+        </button>
+        {resumo ? <p className="text-xs text-textoSecundario">{resumo}</p> : null}
+        {erro ? <p className="text-xs text-red-300">{erro}</p> : null}
+      </div>
     );
   }
 
   return (
-    <>
-      <TituloPagina titulo="Lives" descricao="Lives monitoradas, em andamento e encerradas." />
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-separate border-spacing-y-2 text-sm">
-          <thead className="text-left text-xs uppercase tracking-wide text-textoSecundario">
-            <tr>
-              <th className="px-4 py-2">Canal</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Tempo</th>
-              <th className="px-4 py-2">Mensagens</th>
-              <th className="px-4 py-2">Momentos</th>
-              <th className="px-4 py-2">Cortes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lives.data.map((live) => (
-              <tr key={live.id} className="bg-superficie">
-                <td className="rounded-l-lg px-4 py-3">
-                  <Link to={`/lives/${live.id}`} className="font-medium hover:text-destaqueSuave">
-                    {live.canalNome}
-                  </Link>
-                  <p className="text-xs text-textoSecundario">{live.plataforma}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <Etiqueta texto={live.status} />
-                </td>
-                <td className="px-4 py-3 font-mono">{formatarDuracao(live.duracaoSegundos)}</td>
-                <td className="px-4 py-3 tabular-nums">{formatarNumero(live.totalMensagens)}</td>
-                <td className="px-4 py-3 tabular-nums">{live.momentosDetectados}</td>
-                <td className="rounded-r-lg px-4 py-3 tabular-nums">{live.cortesGerados}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="flex flex-col gap-2 rounded-lg border border-red-400/40 bg-red-500/10 p-3">
+      <p className="text-xs text-textoSecundario">
+        Apaga mensagens de chat, buckets, amostras de audiência e momentos sem corte. Os cortes já gerados são
+        mantidos. Não dá para desfazer.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          className="botao-primario w-full sm:w-auto"
+          disabled={reiniciar.isPending}
+          onClick={() => reiniciar.mutate()}
+        >
+          {reiniciar.isPending ? 'Reiniciando...' : 'Confirmar'}
+        </button>
+        <button
+          type="button"
+          className="botao-secundario w-full sm:w-auto"
+          onClick={() => definirConfirmando(false)}
+        >
+          Cancelar
+        </button>
       </div>
-    </>
+    </div>
   );
 }
 
+export function Lives() {
+  const lives = useQuery({ queryKey: ['lives'], queryFn: () => clienteApi.buscar<Live[]>('/lives') });
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <TituloPagina titulo="Lives" descricao="Lives dos canais com monitoramento ativo." />
+        <BotaoReiniciarMetricas />
+      </div>
+
+      {!lives.data || lives.data.length === 0 ? (
+        <EstadoVazio mensagem="Nenhuma live de canal monitorado." />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] border-separate border-spacing-y-2 text-sm">
+            <thead className="text-left text-xs uppercase tracking-wide text-textoSecundario">
+              <tr>
+                <th className="px-4 py-2">Canal</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Tempo</th>
+                <th className="px-4 py-2">Mensagens</th>
+                <th className="px-4 py-2">Momentos</th>
+                <th className="px-4 py-2">Cortes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lives.data.map((live) => (
+                <tr key={live.id} className="bg-superficie">
+                  <td className="rounded-l-lg px-4 py-3">
+                    <Link to={`/lives/${live.id}`} className="font-medium hover:text-destaqueSuave">
+                      {live.canalNome}
+                    </Link>
+                    <p className="text-xs text-textoSecundario">{live.plataforma}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Etiqueta texto={live.status} />
+                  </td>
+                  <td className="px-4 py-3 font-mono">{formatarDuracao(live.duracaoSegundos)}</td>
+                  <td className="px-4 py-3 tabular-nums">{formatarNumero(live.totalMensagens)}</td>
+                  <td className="px-4 py-3 tabular-nums">{live.momentosDetectados}</td>
+                  <td className="rounded-r-lg px-4 py-3 tabular-nums">{live.cortesGerados}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
 export function DetalheLive() {
   const { id = '' } = useParams();
   const live = useQuery({ queryKey: ['live', id], queryFn: () => clienteApi.buscar<Live>(`/lives/${id}`) });
