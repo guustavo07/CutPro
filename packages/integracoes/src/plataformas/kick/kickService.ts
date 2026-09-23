@@ -76,7 +76,7 @@ export class KickService implements ServicoPlataformaStreaming {
     if (!identificadorSala) {
       throw new ErroPlataforma(
         Plataforma.KICK,
-        `Sala de chat do canal ${opcoes.canal.nome} não identificada. Veja docs/LIMITACOES.md`,
+        `Sala de chat do canal ${opcoes.canal.nome} não gravada no cadastro. Recadastre o canal para preencher o identificador de chat.`,
       );
     }
 

@@ -12,6 +12,7 @@ export type MomentoCandidato = {
   readonly scoreChat: number;
   readonly quantidadeMensagens: number;
   readonly categoriaDominante: CategoriaReacao;
+  readonly usuariosDistintosComEmoteRiso: number;
   readonly picoPrincipal: PicoChat;
   readonly picos: readonly PicoChat[];
 };
@@ -36,6 +37,10 @@ function consolidarGrupo(grupo: readonly PicoChat[]): MomentoCandidato | null {
     scoreChat: principal.scoreChat,
     quantidadeMensagens: grupo.reduce((soma, pico) => soma + pico.quantidadeMensagens, 0),
     categoriaDominante: principal.categoriaDominante,
+    usuariosDistintosComEmoteRiso: grupo.reduce(
+      (maior, pico) => Math.max(maior, pico.usuariosDistintosComEmoteRiso),
+      0,
+    ),
     picoPrincipal: principal,
     picos: grupo,
   };

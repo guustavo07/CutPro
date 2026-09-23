@@ -5,6 +5,8 @@ export type MensagemAnalisada = {
   readonly instanteSegundos: number;
   readonly categoria: CategoriaReacao;
   readonly scoreReacao: number;
+  readonly usuario?: string;
+  readonly possuiEmoteRiso?: boolean;
 };
 
 export type BucketChat = {
@@ -14,6 +16,7 @@ export type BucketChat = {
   readonly quantidadeMensagensComReacao: number;
   readonly somaScoreReacao: number;
   readonly categoriaDominante: CategoriaReacao;
+  readonly usuariosDistintosComEmoteRiso: number;
 };
 
 type AcumuladorBucket = {
@@ -21,6 +24,7 @@ type AcumuladorBucket = {
   quantidadeMensagensComReacao: number;
   somaScoreReacao: number;
   scorePorCategoria: Map<CategoriaReacao, number>;
+  usuariosComEmoteRiso: Set<string>;
 };
 
 function criarAcumulador(): AcumuladorBucket {
@@ -29,11 +33,19 @@ function criarAcumulador(): AcumuladorBucket {
     quantidadeMensagensComReacao: 0,
     somaScoreReacao: 0,
     scorePorCategoria: new Map(),
+    usuariosComEmoteRiso: new Set(),
   };
+}
+
+function registrarEmoteRiso(acumulador: AcumuladorBucket, mensagem: MensagemAnalisada): void {
+  if (!mensagem.possuiEmoteRiso || !mensagem.usuario) return;
+
+  acumulador.usuariosComEmoteRiso.add(mensagem.usuario);
 }
 
 function acumular(acumulador: AcumuladorBucket, mensagem: MensagemAnalisada): void {
   acumulador.quantidadeMensagens += 1;
+  registrarEmoteRiso(acumulador, mensagem);
   if (mensagem.categoria === CategoriaReacao.NEUTRO) return;
 
   acumulador.quantidadeMensagensComReacao += 1;
@@ -93,6 +105,7 @@ function montarSerieContigua(entrada: {
       quantidadeMensagensComReacao: acumulador.quantidadeMensagensComReacao,
       somaScoreReacao: acumulador.somaScoreReacao,
       categoriaDominante: definirCategoriaDominante(acumulador.scorePorCategoria),
+      usuariosDistintosComEmoteRiso: acumulador.usuariosComEmoteRiso.size,
     });
   }
 

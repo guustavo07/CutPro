@@ -4,6 +4,7 @@ import { arredondarScore } from '../utils/numeros.js';
 import {
   CATEGORIA_POR_EMOJI,
   CATEGORIA_POR_TOKEN_EXATO,
+  REGRAS_EMOTE_RISO,
   REGRAS_FRASE,
   REGRAS_TOKEN,
 } from './lexicoReacoes.js';
@@ -23,12 +24,14 @@ export type ResultadoClassificacao = {
   readonly categoria: CategoriaReacao;
   readonly scoreReacao: number;
   readonly ocorrencias: readonly OcorrenciaReacao[];
+  readonly possuiEmoteRiso: boolean;
 };
 
 const RESULTADO_NEUTRO: ResultadoClassificacao = Object.freeze({
   categoria: CategoriaReacao.NEUTRO,
   scoreReacao: SCORE_NEUTRO,
   ocorrencias: Object.freeze([]),
+  possuiEmoteRiso: false,
 });
 
 function coletarPorToken(tokens: readonly string[]): OcorrenciaReacao[] {
@@ -58,6 +61,14 @@ function coletarPorEmoji(emojis: readonly string[]): OcorrenciaReacao[] {
   });
 }
 
+function coletarPorEmoteRiso(mensagem: MensagemNormalizada): OcorrenciaReacao[] {
+  const candidatos = [...mensagem.emotes, ...mensagem.tokens];
+
+  return REGRAS_EMOTE_RISO.filter((regra) => candidatos.some((candidato) => regra.padrao.test(candidato))).map(
+    (regra) => ({ identificador: regra.identificador, categoria: regra.categoria }),
+  );
+}
+
 function escolherCategoriaDominante(ocorrencias: readonly OcorrenciaReacao[]): CategoriaReacao {
   return ocorrencias.reduce<CategoriaReacao>((dominante, ocorrencia) => {
     const pesoAtual = PESO_POR_CATEGORIA_REACAO[ocorrencia.categoria];
@@ -80,10 +91,12 @@ function calcularFatorIntensidade(entrada: {
 }
 
 export function classificarMensagemNormalizada(mensagem: MensagemNormalizada): ResultadoClassificacao {
+  const ocorrenciasEmoteRiso = coletarPorEmoteRiso(mensagem);
   const ocorrencias = [
     ...coletarPorToken(mensagem.tokens),
     ...coletarPorFrase(mensagem.textoNormalizado),
     ...coletarPorEmoji(mensagem.emojis),
+    ...ocorrenciasEmoteRiso,
   ];
   if (ocorrencias.length === 0) return RESULTADO_NEUTRO;
 
@@ -97,6 +110,7 @@ export function classificarMensagemNormalizada(mensagem: MensagemNormalizada): R
     categoria,
     scoreReacao: arredondarScore(PESO_POR_CATEGORIA_REACAO[categoria] * fatorIntensidade),
     ocorrencias,
+    possuiEmoteRiso: ocorrenciasEmoteRiso.length > 0,
   };
 }
 

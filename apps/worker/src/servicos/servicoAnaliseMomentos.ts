@@ -4,6 +4,7 @@ import {
   analisarMomentosPorBuckets,
   CONFIGURACAO_ANALISE_MOMENTOS_PADRAO,
   CONFIGURACAO_DETECCAO_PICO_PADRAO,
+  DURACAO_BUCKET_SEGUNDOS,
   PERFIL_POR_MODO_PROCESSAMENTO,
   type BucketChat,
   type ConfiguracaoAnaliseMomentos,
@@ -67,6 +68,7 @@ export class ServicoAnaliseMomentos {
       where: { liveId },
       orderBy: { indice: 'asc' },
     });
+    const usuariosPorBucket = await this.contarUsuariosComEmoteRiso(liveId);
 
     return registros.map((registro) => ({
       indice: registro.indice,
@@ -75,7 +77,19 @@ export class ServicoAnaliseMomentos {
       quantidadeMensagensComReacao: registro.quantidadeMensagensComReacao,
       somaScoreReacao: Number(registro.somaScoreReacao),
       categoriaDominante: registro.categoriaDominante,
+      usuariosDistintosComEmoteRiso: usuariosPorBucket.get(registro.indice) ?? 0,
     }));
+  }
+
+  private async contarUsuariosComEmoteRiso(liveId: string): Promise<Map<number, number>> {
+    const linhas = await this.prisma.$queryRaw<{ indice: number; usuarios: bigint }[]>`
+      SELECT ("offsetSegundos" / ${DURACAO_BUCKET_SEGUNDOS})::int AS indice, COUNT(DISTINCT usuario) AS usuarios
+      FROM mensagens_chat
+      WHERE "liveId" = ${liveId}::uuid AND "possuiEmoteRiso" = true
+      GROUP BY 1
+    `;
+
+    return new Map(linhas.map((linha) => [linha.indice, Number(linha.usuarios)]));
   }
 
   private async listarInstantesExistentes(liveId: string): Promise<number[]> {
@@ -136,6 +150,7 @@ export class ServicoAnaliseMomentos {
           quantidadeMensagens: momento.quantidadeMensagens,
           mensagensPorMinuto: momento.mensagensPorMinuto,
           baselineMensagensPorMinuto: momento.baselineMensagensPorMinuto,
+          usuariosDistintosEmoteRiso: momento.usuariosDistintosComEmoteRiso,
           motivos: [...momento.motivos],
         },
       });

@@ -40,6 +40,7 @@ export type PicoChat = {
   readonly densidadeReacao: number;
   readonly scoreChat: number;
   readonly categoriaDominante: CategoriaReacao;
+  readonly usuariosDistintosComEmoteRiso: number;
 };
 
 export function calcularScoreVolume(razaoVolume: number): number {
@@ -118,6 +119,7 @@ function montarPico(entrada: {
     densidadeReacao: arredondarScore(entrada.densidadeReacao),
     scoreChat: entrada.scoreChat,
     categoriaDominante: entrada.bucket.categoriaDominante,
+    usuariosDistintosComEmoteRiso: entrada.bucket.usuariosDistintosComEmoteRiso,
   };
 }
 

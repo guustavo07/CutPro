@@ -65,6 +65,7 @@ export class ServicoCanais {
       nomeExibicao: canalExterno.nomeExibicao,
       plataforma: dto.plataforma,
       identificadorExterno: canalExterno.identificadorExterno,
+      identificadorChat: canalExterno.identificadorChat,
       url: canalExterno.url,
       urlAvatar: canalExterno.urlAvatar,
       monitoramentoAtivo: dto.monitoramentoAtivo,

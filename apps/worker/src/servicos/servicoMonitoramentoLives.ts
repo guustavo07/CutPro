@@ -59,9 +59,26 @@ export class ServicoMonitoramentoLives {
     });
   }
 
+  private async completarIdentificadorChat(canal: Canal): Promise<CanalExterno> {
+    const canalExterno = montarCanalExterno(canal);
+    if (canalExterno.identificadorChat) return canalExterno;
+
+    const plataforma = this.plataformas.obter(canal.plataforma);
+    const resolvido = await plataforma.buscarCanal(canal.nome);
+    if (!resolvido?.identificadorChat) return canalExterno;
+
+    await this.prisma.canal.update({
+      where: { id: canal.id },
+      data: { identificadorChat: resolvido.identificadorChat },
+    });
+    this.log.info({ canalId: canal.id }, 'Identificador de chat preenchido no cadastro');
+
+    return { ...canalExterno, identificadorChat: resolvido.identificadorChat };
+  }
+
   private async verificarCanal(canal: Canal): Promise<void> {
     const plataforma = this.plataformas.obter(canal.plataforma);
-    const canalExterno = montarCanalExterno(canal);
+    const canalExterno = await this.completarIdentificadorChat(canal);
     const liveExterna = await plataforma.buscarLiveAtual(canalExterno);
     const liveAberta = await this.buscarLiveAberta(canal.id);
 

@@ -77,6 +77,10 @@ export const REGRAS_FRASE: readonly RegraReacao[] = Object.freeze([
   { identificador: 'frase-exclamacao', categoria: CategoriaReacao.HYPE, padrao: /!{3,}/ },
 ]);
 
+export const REGRAS_EMOTE_RISO: readonly RegraReacao[] = Object.freeze([
+  { identificador: 'emote-kekw', categoria: CategoriaReacao.HUMOR, padrao: /kekw/ },
+]);
+
 export const CATEGORIA_POR_EMOJI: ReadonlyMap<string, CategoriaReacao> = new Map([
   ['😂', CategoriaReacao.HUMOR],
   ['🤣', CategoriaReacao.HUMOR],

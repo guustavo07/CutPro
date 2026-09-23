@@ -8,13 +8,16 @@ const REGEX_DIACRITICOS = /[\u0300-\u036f]/g;
 const REGEX_EMOJI = /\p{Extended_Pictographic}/gu;
 const REGEX_SEPARADOR_TOKEN = /[^\p{L}\p{N}]+/u;
 const REGEX_SEQUENCIA_REPETIDA = /(.)\1+/g;
+const REGEX_EMOTE_PLATAFORMA = /\[emote:\d+:([^\]]+)\]/g;
 const REPETICAO_MINIMA = 1;
+const POSICAO_NOME_EMOTE = 1;
 
 export type MensagemNormalizada = {
   readonly textoOriginal: string;
   readonly textoNormalizado: string;
   readonly tokens: readonly string[];
   readonly emojis: readonly string[];
+  readonly emotes: readonly string[];
   readonly intensidadeRepeticao: number;
 };
 
@@ -44,16 +47,29 @@ export function dividirEmTokens(texto: string): readonly string[] {
   return texto.split(REGEX_SEPARADOR_TOKEN).filter((token) => token.length > 0);
 }
 
+export function extrairEmotes(texto: string): readonly string[] {
+  return [...texto.matchAll(REGEX_EMOTE_PLATAFORMA)].flatMap((ocorrencia) => {
+    const nome = ocorrencia[POSICAO_NOME_EMOTE];
+    return nome ? [nome.toLowerCase()] : [];
+  });
+}
+
+export function removerMarcacaoDeEmotes(texto: string): string {
+  return texto.replace(REGEX_EMOTE_PLATAFORMA, ' ');
+}
+
 export function normalizarMensagem(texto: string): MensagemNormalizada {
   const textoLimitado = texto.trim().slice(0, TAMANHO_MAXIMO_MENSAGEM_ANALISADA);
-  const semAcento = removerDiacriticos(textoLimitado.toLowerCase());
+  const semEmotes = removerMarcacaoDeEmotes(textoLimitado);
+  const semAcento = removerDiacriticos(semEmotes.toLowerCase());
   const reduzido = reduzirRepeticoes(semAcento);
 
   return {
     textoOriginal: texto,
     textoNormalizado: reduzido,
     tokens: dividirEmTokens(reduzido),
-    emojis: extrairEmojis(textoLimitado),
+    emojis: extrairEmojis(semEmotes),
+    emotes: extrairEmotes(textoLimitado),
     intensidadeRepeticao: medirMaiorRepeticao(semAcento),
   };
 }

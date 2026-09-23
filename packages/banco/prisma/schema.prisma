@@ -139,11 +139,13 @@ model MensagemChat {
   offsetSegundos  Int
   categoriaReacao CategoriaReacao @default(NEUTRO)
   scoreReacao     Decimal         @default(0) @db.Decimal(5, 4)
+  possuiEmoteRiso Boolean         @default(false)
 
   live Live @relation(fields: [liveId], references: [id], onDelete: Cascade)
 
   @@index([liveId, offsetSegundos])
   @@index([liveId, categoriaReacao])
+  @@index([liveId, possuiEmoteRiso, offsetSegundos])
   @@map("mensagens_chat")
 }
 
@@ -194,6 +196,7 @@ model MomentoDetectado {
   quantidadeMensagens  Int             @default(0)
   mensagensPorMinuto   Int             @default(0)
   baselineMensagensPorMinuto Int       @default(0)
+  usuariosDistintosEmoteRiso Int       @default(0)
   motivos              Json            @default("[]")
   analisadoPorIa       Boolean         @default(false)
   processado           Boolean         @default(false)

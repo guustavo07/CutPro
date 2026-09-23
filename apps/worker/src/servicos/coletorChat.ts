@@ -19,6 +19,7 @@ type MensagemBufferizada = {
   readonly offsetSegundos: number;
   readonly categoriaReacao: CategoriaReacao;
   readonly scoreReacao: number;
+  readonly possuiEmoteRiso: boolean;
 };
 
 type ColetaAtiva = {
@@ -82,9 +83,17 @@ export class ColetorChat {
     });
   }
 
-  private classificar(texto: string): { categoriaReacao: CategoriaReacao; scoreReacao: number } {
+  private classificar(texto: string): {
+    categoriaReacao: CategoriaReacao;
+    scoreReacao: number;
+    possuiEmoteRiso: boolean;
+  } {
     const resultado = classificarReacao(texto);
-    return { categoriaReacao: resultado.categoria, scoreReacao: resultado.scoreReacao };
+    return {
+      categoriaReacao: resultado.categoria,
+      scoreReacao: resultado.scoreReacao,
+      possuiEmoteRiso: resultado.possuiEmoteRiso,
+    };
   }
 
   private calcularOffset(inicioLive: Date, dataHora: Date): number {
