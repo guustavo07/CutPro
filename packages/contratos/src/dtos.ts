@@ -38,6 +38,42 @@ export const esquemaAtualizarCorte = z.object({
 
 export type AtualizarCorteDto = z.infer<typeof esquemaAtualizarCorte>;
 
+const FRACAO_MINIMA = 0;
+const FRACAO_MAXIMA = 1;
+const DURACAO_MINIMA_CORTE = 5;
+const DURACAO_MAXIMA_CORTE = 180;
+
+export const esquemaPrepararCorte = z
+  .object({
+    regiaoWebcam: z
+      .object({
+        x: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+        y: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+        largura: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+        altura: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA),
+      })
+      .optional(),
+    deslocamentoGameplay: z.number().min(FRACAO_MINIMA).max(FRACAO_MAXIMA).optional(),
+    template: z.string().trim().max(60).optional(),
+    inicioSegundos: z.number().int().min(0).optional(),
+    duracaoSegundos: z.number().int().min(DURACAO_MINIMA_CORTE).max(DURACAO_MAXIMA_CORTE).optional(),
+    salvarNoCanal: z.boolean().default(true),
+  })
+  .superRefine((entrada, contexto) => {
+    if (!entrada.regiaoWebcam) return;
+
+    const { x, largura } = entrada.regiaoWebcam;
+    if (x + largura <= FRACAO_MAXIMA) return;
+
+    contexto.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['regiaoWebcam'],
+      message: 'A área da webcam ultrapassa a borda direita do quadro',
+    });
+  });
+
+export type PrepararCorteDto = z.infer<typeof esquemaPrepararCorte>;
+
 export const esquemaListarCortes = z.object({
   status: z.string().optional(),
   canalId: z.string().uuid().optional(),

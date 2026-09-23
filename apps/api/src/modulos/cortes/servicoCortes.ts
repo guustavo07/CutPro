@@ -1,12 +1,24 @@
 import { StatusCorte } from '@cutpro/banco';
-import { NomeFila, NomeJob, type AtualizarCorteDto, type ListarCortesDto } from '@cutpro/contratos';
+import {
+  interpretarConfiguracaoCanal,
+  NomeFila,
+  NomeJob,
+  type AtualizarCorteDto,
+  type ListarCortesDto,
+  type PrepararCorteDto,
+} from '@cutpro/contratos';
 import { podeTransicionarCorte } from '@cutpro/dominio';
 import type { ProdutorFilas } from '@cutpro/filas';
 import type { ServicoArmazenamentoArquivo } from '@cutpro/integracoes';
 import { erroConflito, erroNaoEncontrado, erroRequisicaoInvalida } from '../../infra/erros.js';
 import type { CorteDetalhado, RepositorioCortes } from './repositorioCortes.js';
 
-export function montarRespostaCorte(corte: CorteDetalhado, urlVideo: string | null, urlMiniatura: string | null) {
+export function montarRespostaCorte(
+  corte: CorteDetalhado,
+  urlVideo: string | null,
+  urlMiniatura: string | null,
+  urlQuadroReferencia: string | null = null,
+) {
   return {
     id: corte.id,
     liveId: corte.liveId,
@@ -29,6 +41,7 @@ export function montarRespostaCorte(corte: CorteDetalhado, urlVideo: string | nu
     mensagensPorMinuto: corte.momento.mensagensPorMinuto,
     urlVideo,
     urlMiniatura,
+    urlQuadroReferencia,
     publicacoes: corte.publicacoes.map((publicacao) => ({
       id: publicacao.id,
       plataforma: publicacao.plataforma,
@@ -54,12 +67,13 @@ export class ServicoCortes {
   }
 
   private async responder(corte: CorteDetalhado) {
-    const [urlVideo, urlMiniatura] = await Promise.all([
+    const [urlVideo, urlMiniatura, urlQuadroReferencia] = await Promise.all([
       this.resolverUrl(corte.caminhoArquivo),
       this.resolverUrl(corte.caminhoMiniatura),
+      this.resolverUrl(corte.caminhoQuadroReferencia),
     ]);
 
-    return montarRespostaCorte(corte, urlVideo, urlMiniatura);
+    return montarRespostaCorte(corte, urlVideo, urlMiniatura, urlQuadroReferencia);
   }
 
   async listar(filtro: ListarCortesDto) {
@@ -95,6 +109,44 @@ export class ServicoCortes {
 
   async rejeitar(id: string) {
     return this.responder(await this.transicionar(id, StatusCorte.REJEITADO));
+  }
+
+  async preparar(id: string, dto: PrepararCorteDto) {
+    const corte = await this.obterCorteOuFalhar(id);
+    await this.aplicarAjustesDoCanal(corte, dto);
+    await this.aplicarAjustesDoCorte(id, corte, dto);
+
+    return this.regenerar(id);
+  }
+
+  private async aplicarAjustesDoCanal(corte: CorteDetalhado, dto: PrepararCorteDto): Promise<void> {
+    if (!dto.salvarNoCanal) return;
+    if (!dto.regiaoWebcam && dto.deslocamentoGameplay === undefined) return;
+
+    const atual = interpretarConfiguracaoCanal(corte.live.canal.configuracao);
+    await this.repositorio.atualizarConfiguracaoDoCanal(corte.live.canal.id, {
+      ...atual,
+      regiaoWebcam: dto.regiaoWebcam ?? atual.regiaoWebcam,
+      deslocamentoGameplay: dto.deslocamentoGameplay ?? atual.deslocamentoGameplay,
+    });
+  }
+
+  private async aplicarAjustesDoCorte(
+    id: string,
+    corte: CorteDetalhado,
+    dto: PrepararCorteDto,
+  ): Promise<void> {
+    const inicioSegundos = dto.inicioSegundos ?? corte.inicioSegundos;
+    const duracaoSegundos = dto.duracaoSegundos ?? corte.duracaoSegundos;
+    const mudouTrecho = inicioSegundos !== corte.inicioSegundos || duracaoSegundos !== corte.duracaoSegundos;
+    if (!mudouTrecho && !dto.template) return;
+
+    await this.repositorio.atualizar(id, {
+      inicioSegundos,
+      duracaoSegundos,
+      fimSegundos: inicioSegundos + duracaoSegundos,
+      template: dto.template ?? corte.template,
+    });
   }
 
   async regenerar(id: string) {

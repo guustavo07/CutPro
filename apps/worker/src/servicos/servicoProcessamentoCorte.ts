@@ -103,6 +103,7 @@ export class ServicoProcessamentoCorte {
     const trecho = join(pasta, 'trecho.mp4');
     const vertical = join(pasta, 'vertical.mp4');
     const miniatura = join(pasta, 'miniatura.jpg');
+    const quadroReferencia = join(pasta, 'referencia.jpg');
 
     await this.dependencias.video.recortar({
       caminhoOrigem: origem.caminho,
@@ -125,13 +126,19 @@ export class ServicoProcessamentoCorte {
       caminhoMarca: this.dependencias.caminhoMarca,
       caminhoLegenda,
     });
+    const instanteCapa = Math.floor(corte.duracaoSegundos * PROPORCAO_INSTANTE_MINIATURA);
     await this.dependencias.video.gerarMiniatura({
       caminhoOrigem: vertical,
       caminhoDestino: miniatura,
-      instanteSegundos: Math.floor(corte.duracaoSegundos * PROPORCAO_INSTANTE_MINIATURA),
+      instanteSegundos: instanteCapa,
+    });
+    await this.dependencias.video.gerarMiniatura({
+      caminhoOrigem: trecho,
+      caminhoDestino: quadroReferencia,
+      instanteSegundos: instanteCapa,
     });
 
-    await this.publicarResultado({ corte, vertical, miniatura });
+    await this.publicarResultado({ corte, vertical, miniatura, quadroReferencia });
   }
 
   private async gerarLegenda(entrada: {
@@ -183,9 +190,10 @@ export class ServicoProcessamentoCorte {
     readonly corte: CorteComLive;
     readonly vertical: string;
     readonly miniatura: string;
+    readonly quadroReferencia: string;
   }): Promise<void> {
     const { corte } = entrada;
-    const [video, capa] = await Promise.all([
+    const [video, capa, referencia] = await Promise.all([
       this.dependencias.armazenamento.salvarArquivo({
         caminho: `cortes/${corte.id}/vertical.mp4`,
         caminhoLocalOrigem: entrada.vertical,
@@ -196,11 +204,21 @@ export class ServicoProcessamentoCorte {
         caminhoLocalOrigem: entrada.miniatura,
         tipoConteudo: TIPO_CONTEUDO_MINIATURA,
       }),
+      this.dependencias.armazenamento.salvarArquivo({
+        caminho: `cortes/${corte.id}/referencia.jpg`,
+        caminhoLocalOrigem: entrada.quadroReferencia,
+        tipoConteudo: TIPO_CONTEUDO_MINIATURA,
+      }),
     ]);
 
     await this.prisma.corte.update({
       where: { id: corte.id },
-      data: { caminhoArquivo: video.caminho, caminhoMiniatura: capa.caminho, status: StatusCorte.PRONTO },
+      data: {
+        caminhoArquivo: video.caminho,
+        caminhoMiniatura: capa.caminho,
+        caminhoQuadroReferencia: referencia.caminho,
+        status: StatusCorte.PRONTO,
+      },
     });
 
     await this.dependencias.eventos.registrar({

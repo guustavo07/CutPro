@@ -1,4 +1,4 @@
-import { esquemaAtualizarCorte, esquemaListarCortes } from '@cutpro/contratos';
+import { esquemaAtualizarCorte, esquemaListarCortes, esquemaPrepararCorte } from '@cutpro/contratos';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { ContextoAplicacao } from '@cutpro/nucleo';
@@ -38,6 +38,11 @@ export async function registrarRotasCortes(app: FastifyInstance, contexto: Conte
   app.post('/cortes/:id/rejeitar', async (requisicao) =>
     servico.rejeitar(interpretar(esquemaParametroId, requisicao.params).id),
   );
+
+  app.post('/cortes/:id/preparar', async (requisicao) => {
+    const { id } = interpretar(esquemaParametroId, requisicao.params);
+    return servico.preparar(id, interpretar(esquemaPrepararCorte, requisicao.body ?? {}));
+  });
 
   app.post('/cortes/:id/regenerar', async (requisicao) =>
     servico.regenerar(interpretar(esquemaParametroId, requisicao.params).id),

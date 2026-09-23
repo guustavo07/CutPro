@@ -225,6 +225,7 @@ model Corte {
   caminhoArquivoBruto String?    @db.VarChar(500)
   caminhoArquivo     String?     @db.VarChar(500)
   caminhoMiniatura   String?     @db.VarChar(500)
+  caminhoQuadroReferencia String? @db.VarChar(500)
   caminhoLegenda     String?     @db.VarChar(500)
   clipScore          Decimal     @default(0) @db.Decimal(5, 4)
   status             StatusCorte @default(DETECTADO)

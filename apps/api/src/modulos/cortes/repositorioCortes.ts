@@ -9,7 +9,7 @@ const INCLUSAO_PADRAO = {
       id: true,
       titulo: true,
       plataforma: true,
-      canal: { select: { id: true, nome: true, nomeExibicao: true, urlAvatar: true } },
+      canal: { select: { id: true, nome: true, nomeExibicao: true, urlAvatar: true, configuracao: true } },
     },
   },
   momento: {
@@ -20,6 +20,10 @@ const INCLUSAO_PADRAO = {
 
 export class RepositorioCortes {
   constructor(private readonly prisma: PrismaClient) {}
+
+  async atualizarConfiguracaoDoCanal(canalId: string, configuracao: object): Promise<void> {
+    await this.prisma.canal.update({ where: { id: canalId }, data: { configuracao } });
+  }
 
   private montarFiltro(filtro: ListarCortesDto): Prisma.CorteWhereInput {
     return {

@@ -97,6 +97,7 @@ export type Corte = {
   mensagensPorMinuto: number;
   urlVideo: string | null;
   urlMiniatura: string | null;
+  urlQuadroReferencia: string | null;
   publicacoes: Publicacao[];
   dataCriacao: string;
 };

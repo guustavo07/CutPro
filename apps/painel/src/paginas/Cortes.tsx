@@ -5,6 +5,7 @@ import { clienteApi, type RespostaPaginada } from '../api/clienteApi';
 import type { Corte } from '../api/tipos';
 import { EstadoVazio, Etiqueta, IndicadorScore } from '../componentes/Indicadores';
 import { TituloPagina } from '../componentes/Layout';
+import { estaEmPreparo, PreparacaoCorte } from '../componentes/PreparacaoCorte';
 import { formatarDataHora, formatarDuracaoCurta } from '../utils/formatacao';
 
 const FILTROS = [
@@ -77,10 +78,17 @@ export function Cortes() {
   );
 }
 
+const INTERVALO_ATUALIZACAO_PREPARO_MS = 3000;
+
 export function DetalheCorte() {
   const { id = '' } = useParams();
   const clienteConsulta = useQueryClient();
-  const corte = useQuery({ queryKey: ['corte', id], queryFn: () => clienteApi.buscar<Corte>(`/cortes/${id}`) });
+  const corte = useQuery({
+    queryKey: ['corte', id],
+    queryFn: () => clienteApi.buscar<Corte>(`/cortes/${id}`),
+    refetchInterval: (consulta) =>
+      estaEmPreparo(consulta.state.data?.status ?? '') ? INTERVALO_ATUALIZACAO_PREPARO_MS : false,
+  });
 
   const acao = useMutation({
     mutationFn: (nome: string) => clienteApi.executar<Corte>(`/cortes/${id}/${nome}`),
@@ -110,6 +118,7 @@ export function DetalheCorte() {
         </div>
 
         <div className="space-y-4">
+          <PreparacaoCorte corte={corte.data} />
           <div className="cartao">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>

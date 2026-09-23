@@ -210,17 +210,11 @@ export class ServicoAnaliseMomentos {
         clipScore: new Prisma.Decimal(momento.clipScore),
         template: configuracao.template,
         hashtags: configuracao.hashtagsPadrao,
-        status: StatusCorte.AGUARDANDO_PROCESSAMENTO,
+        status: StatusCorte.DETECTADO,
       },
     });
 
-    await this.filas.enfileirar({
-      fila: NomeFila.PROCESSAMENTO_VIDEO,
-      job: NomeJob.PROCESSAR_CORTE,
-      dados: { corteId: corte.id },
-      opcoes: { jobId: `${NomeJob.PROCESSAR_CORTE}:${corte.id}` },
-    });
-    this.log.info({ corteId: corte.id, clipScore: momento.clipScore }, 'Corte enfileirado para processamento');
+    this.log.info({ corteId: corte.id, clipScore: momento.clipScore }, 'Corte detectado, aguardando preparação');
   }
 
   private async marcarBucketsAnalisados(liveId: string): Promise<void> {
