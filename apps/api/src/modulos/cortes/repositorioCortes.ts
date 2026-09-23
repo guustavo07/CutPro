@@ -21,6 +21,22 @@ const INCLUSAO_PADRAO = {
 export class RepositorioCortes {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async remover(id: string): Promise<void> {
+    await this.prisma.corte.delete({ where: { id } });
+  }
+
+  async listarParaRemocao(status?: StatusCorte) {
+    return this.prisma.corte.findMany({
+      where: { status },
+      select: { id: true, caminhoArquivo: true, caminhoMiniatura: true, caminhoQuadroReferencia: true },
+    });
+  }
+
+  async removerMuitos(ids: readonly string[]): Promise<number> {
+    const { count } = await this.prisma.corte.deleteMany({ where: { id: { in: [...ids] } } });
+    return count;
+  }
+
   async atualizarConfiguracaoDoCanal(canalId: string, configuracao: object): Promise<void> {
     await this.prisma.canal.update({ where: { id: canalId }, data: { configuracao } });
   }

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { clienteApi, type RespostaPaginada } from '../api/clienteApi';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { clienteApi, ErroApi, type RespostaPaginada } from '../api/clienteApi';
 import type { Corte } from '../api/tipos';
 import { EstadoVazio, Etiqueta, IndicadorScore } from '../componentes/Indicadores';
 import { TituloPagina } from '../componentes/Layout';
@@ -20,6 +20,55 @@ const FILTROS = [
   { valor: 'ERRO', rotulo: 'Erro' },
 ];
 
+function BotaoLimparCortes({ status }: { readonly status: string }) {
+  const clienteConsulta = useQueryClient();
+  const [confirmando, definirConfirmando] = useState(false);
+  const [erro, definirErro] = useState<string | null>(null);
+
+  const limpar = useMutation({
+    mutationFn: () => clienteApi.remover(`/cortes${status ? `?status=${status}` : ''}`),
+    onSuccess: () => {
+      definirErro(null);
+      definirConfirmando(false);
+      void clienteConsulta.invalidateQueries({ queryKey: ['cortes'] });
+    },
+    onError: (falha: unknown) =>
+      definirErro(falha instanceof ErroApi ? falha.message : 'Falha ao limpar os cortes'),
+  });
+
+  if (!confirmando) {
+    return (
+      <div className="flex flex-col gap-1">
+        <button type="button" className="botao-secundario w-full sm:w-auto" onClick={() => definirConfirmando(true)}>
+          {status ? 'Limpar filtrados' : 'Limpar todos'}
+        </button>
+        {erro ? <p className="text-xs text-red-300">{erro}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-red-400/40 bg-red-500/10 p-3">
+      <p className="text-xs text-textoSecundario">
+        Apaga os cortes {status ? 'deste filtro' : 'todos'} e os arquivos de vídeo. Não dá para desfazer.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          className="botao-primario w-full sm:w-auto"
+          disabled={limpar.isPending}
+          onClick={() => limpar.mutate()}
+        >
+          {limpar.isPending ? 'Limpando...' : 'Confirmar'}
+        </button>
+        <button type="button" className="botao-secundario w-full sm:w-auto" onClick={() => definirConfirmando(false)}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Cortes() {
   const [status, definirStatus] = useState('');
   const cortes = useQuery({
@@ -30,7 +79,10 @@ export function Cortes() {
 
   return (
     <>
-      <TituloPagina titulo="Cortes" descricao="Todos os cortes gerados pelo sistema." />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <TituloPagina titulo="Cortes" descricao="Todos os cortes gerados pelo sistema." />
+        <BotaoLimparCortes status={status} />
+      </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
         {FILTROS.map((filtro) => (
@@ -83,6 +135,7 @@ const INTERVALO_ATUALIZACAO_PREPARO_MS = 3000;
 export function DetalheCorte() {
   const { id = '' } = useParams();
   const clienteConsulta = useQueryClient();
+  const navegar = useNavigate();
   const corte = useQuery({
     queryKey: ['corte', id],
     queryFn: () => clienteApi.buscar<Corte>(`/cortes/${id}`),
@@ -90,12 +143,28 @@ export function DetalheCorte() {
       estaEmPreparo(consulta.state.data?.status ?? '') ? INTERVALO_ATUALIZACAO_PREPARO_MS : false,
   });
 
+  const [erroAcao, definirErroAcao] = useState<string | null>(null);
+  const [confirmandoExclusao, definirConfirmandoExclusao] = useState(false);
+
   const acao = useMutation({
     mutationFn: (nome: string) => clienteApi.executar<Corte>(`/cortes/${id}/${nome}`),
     onSuccess: () => {
+      definirErroAcao(null);
       void clienteConsulta.invalidateQueries({ queryKey: ['corte', id] });
       void clienteConsulta.invalidateQueries({ queryKey: ['cortes'] });
     },
+    onError: (falha: unknown) =>
+      definirErroAcao(falha instanceof ErroApi ? falha.message : 'Não foi possível executar esta ação.'),
+  });
+
+  const excluir = useMutation({
+    mutationFn: () => clienteApi.remover(`/cortes/${id}`),
+    onSuccess: () => {
+      void clienteConsulta.invalidateQueries({ queryKey: ['cortes'] });
+      navegar('/cortes');
+    },
+    onError: (falha: unknown) =>
+      definirErroAcao(falha instanceof ErroApi ? falha.message : 'Não foi possível excluir o corte.'),
   });
 
   if (!corte.data) return <EstadoVazio mensagem="Carregando corte..." />;
@@ -188,9 +257,36 @@ export function DetalheCorte() {
                 Baixar
               </a>
             ) : null}
+            {confirmandoExclusao ? (
+              <>
+                <button
+                  type="button"
+                  className="botao-secundario text-red-300"
+                  disabled={excluir.isPending}
+                  onClick={() => excluir.mutate()}
+                >
+                  {excluir.isPending ? 'Excluindo...' : 'Confirmar exclusão'}
+                </button>
+                <button
+                  type="button"
+                  className="botao-secundario"
+                  onClick={() => definirConfirmandoExclusao(false)}
+                >
+                  Cancelar
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="botao-secundario"
+                onClick={() => definirConfirmandoExclusao(true)}
+              >
+                Excluir
+              </button>
+            )}
           </div>
 
-          {acao.isError ? <p className="text-sm text-red-300">Não foi possível executar esta ação.</p> : null}
+          {erroAcao ? <p className="text-sm text-red-300">{erroAcao}</p> : null}
         </div>
       </div>
     </>

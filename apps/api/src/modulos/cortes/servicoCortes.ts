@@ -149,6 +149,28 @@ export class ServicoCortes {
     });
   }
 
+  private async apagarArquivos(caminhos: readonly (string | null)[]): Promise<void> {
+    const existentes = caminhos.filter((caminho): caminho is string => Boolean(caminho));
+    await Promise.all(existentes.map((caminho) => this.armazenamento.remover(caminho).catch(() => undefined)));
+  }
+
+  async remover(id: string): Promise<void> {
+    const corte = await this.obterCorteOuFalhar(id);
+    await this.apagarArquivos([corte.caminhoArquivo, corte.caminhoMiniatura, corte.caminhoQuadroReferencia]);
+    await this.repositorio.remover(id);
+  }
+
+  async removerTodos(status?: string): Promise<{ removidos: number }> {
+    const cortes = await this.repositorio.listarParaRemocao(status as StatusCorte | undefined);
+    if (cortes.length === 0) return { removidos: 0 };
+
+    await this.apagarArquivos(
+      cortes.flatMap((corte) => [corte.caminhoArquivo, corte.caminhoMiniatura, corte.caminhoQuadroReferencia]),
+    );
+
+    return { removidos: await this.repositorio.removerMuitos(cortes.map((corte) => corte.id)) };
+  }
+
   async regenerar(id: string) {
     const corte = await this.transicionar(id, StatusCorte.AGUARDANDO_PROCESSAMENTO);
     await this.filas.enfileirar({

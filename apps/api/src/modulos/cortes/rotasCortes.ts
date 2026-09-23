@@ -7,6 +7,7 @@ import { RepositorioCortes } from './repositorioCortes.js';
 import { ServicoCortes } from './servicoCortes.js';
 
 const esquemaParametroId = z.object({ id: z.string().uuid() });
+const STATUS_SEM_CONTEUDO = 204;
 
 function interpretar<E extends z.ZodTypeAny>(esquema: E, valor: unknown): z.output<E> {
   const resultado = esquema.safeParse(valor);
@@ -38,6 +39,16 @@ export async function registrarRotasCortes(app: FastifyInstance, contexto: Conte
   app.post('/cortes/:id/rejeitar', async (requisicao) =>
     servico.rejeitar(interpretar(esquemaParametroId, requisicao.params).id),
   );
+
+  app.delete('/cortes', async (requisicao) => {
+    const filtro = interpretar(esquemaListarCortes, requisicao.query);
+    return servico.removerTodos(filtro.status);
+  });
+
+  app.delete('/cortes/:id', async (requisicao, resposta) => {
+    await servico.remover(interpretar(esquemaParametroId, requisicao.params).id);
+    return resposta.status(STATUS_SEM_CONTEUDO).send();
+  });
 
   app.post('/cortes/:id/preparar', async (requisicao) => {
     const { id } = interpretar(esquemaParametroId, requisicao.params);
