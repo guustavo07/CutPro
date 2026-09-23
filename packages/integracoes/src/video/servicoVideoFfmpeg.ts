@@ -23,6 +23,7 @@ const TAMANHO_MAXIMO_DETALHE_ERRO = 500;
 export type OpcoesServicoVideoFfmpeg = {
   readonly caminhoFfmpeg: string;
   readonly caminhoFfprobe: string;
+  readonly caminhoConfiguracaoFontes?: string;
 };
 
 type ResultadoExecucao = {
@@ -31,9 +32,13 @@ type ResultadoExecucao = {
   readonly saidaErro: string;
 };
 
-function executar(comando: string, argumentos: readonly string[]): Promise<ResultadoExecucao> {
+function executar(
+  comando: string,
+  argumentos: readonly string[],
+  ambiente?: NodeJS.ProcessEnv,
+): Promise<ResultadoExecucao> {
   return new Promise((resolver, rejeitar) => {
-    const processo = spawn(comando, [...argumentos], { windowsHide: true });
+    const processo = spawn(comando, [...argumentos], { windowsHide: true, env: ambiente ?? process.env });
     let saidaPadrao = '';
     let saidaErro = '';
 
@@ -44,8 +49,12 @@ function executar(comando: string, argumentos: readonly string[]): Promise<Resul
   });
 }
 
-async function executarOuFalhar(comando: string, argumentos: readonly string[]): Promise<string> {
-  const resultado = await executar(comando, argumentos);
+async function executarOuFalhar(
+  comando: string,
+  argumentos: readonly string[],
+  ambiente?: NodeJS.ProcessEnv,
+): Promise<string> {
+  const resultado = await executar(comando, argumentos, ambiente);
   if (resultado.codigo === CODIGO_SAIDA_SUCESSO) return resultado.saidaPadrao;
 
   const detalhe = resultado.saidaErro.trim().slice(0, TAMANHO_MAXIMO_DETALHE_ERRO);
@@ -54,6 +63,12 @@ async function executarOuFalhar(comando: string, argumentos: readonly string[]):
 
 export class ServicoVideoFfmpeg implements ServicoVideo {
   constructor(private readonly opcoes: OpcoesServicoVideoFfmpeg) {}
+
+  private montarAmbiente(): NodeJS.ProcessEnv {
+    if (!this.opcoes.caminhoConfiguracaoFontes) return process.env;
+
+    return { ...process.env, FONTCONFIG_FILE: this.opcoes.caminhoConfiguracaoFontes };
+  }
 
   async concatenar(entrada: EntradaConcatenacao): Promise<void> {
     await executarOuFalhar(this.opcoes.caminhoFfmpeg, montarArgumentosConcatenacao(entrada));
@@ -68,7 +83,7 @@ export class ServicoVideoFfmpeg implements ServicoVideo {
   }
 
   async enquadrarVertical(entrada: EntradaEnquadramento): Promise<void> {
-    await executarOuFalhar(this.opcoes.caminhoFfmpeg, montarArgumentosEnquadramento(entrada));
+    await executarOuFalhar(this.opcoes.caminhoFfmpeg, montarArgumentosEnquadramento(entrada), this.montarAmbiente());
   }
 
   async gerarMiniatura(entrada: EntradaMiniatura): Promise<void> {

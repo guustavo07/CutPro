@@ -40,6 +40,7 @@ export class ServicoProcessamentoCorte {
       readonly caminhoMarca: string;
       readonly transcricao: ServicoTranscricao;
       readonly fonteLegenda: string;
+      readonly arquivoFonte: string;
       readonly eventos: RegistroEventos;
       readonly log: RegistroLog;
     },
@@ -124,6 +125,8 @@ export class ServicoProcessamentoCorte {
       regiaoWebcam: configuracao.regiaoWebcam,
       deslocamentoGameplay: configuracao.deslocamentoGameplay,
       caminhoMarca: this.dependencias.caminhoMarca,
+      nomeDoCanal: corte.live.canal.nomeExibicao ?? corte.live.canal.nome,
+      arquivoFonte: this.dependencias.arquivoFonte,
       caminhoLegenda,
     });
     const instanteCapa = Math.floor(corte.duracaoSegundos * PROPORCAO_INSTANTE_MINIATURA);

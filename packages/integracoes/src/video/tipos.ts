@@ -23,6 +23,8 @@ export type EntradaEnquadramento = {
   readonly regiaoWebcam?: RegiaoWebcam;
   readonly deslocamentoGameplay?: number;
   readonly caminhoMarca?: string;
+  readonly nomeDoCanal?: string;
+  readonly arquivoFonte?: string;
   readonly caminhoLegenda?: string;
 };
 

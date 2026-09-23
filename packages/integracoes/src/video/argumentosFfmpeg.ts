@@ -21,11 +21,16 @@ const TAXA_AUDIO = '128k';
 const FORMATO_PIXEL = 'yuv420p';
 const DESLOCAMENTO_CENTRALIZADO = '(W-w)/2:(H-h)/2';
 const RAIO_DESFOQUE = '20:2';
-const PROPORCAO_WEBCAM = 0.42;
-const PROPORCAO_LARGURA_MARCA = 0.13;
+const PROPORCAO_WEBCAM = 0.5;
+const FRACAO_MINIMA_CONTEUDO = 0.35;
+const PROPORCAO_LARGURA_MARCA = 0.085;
 const MARGEM_MARCA = 36;
-const OPACIDADE_MARCA = 0.85;
+const OPACIDADE_MARCA = 0.42;
+const TAMANHO_FONTE_CANAL = 30;
+const OPACIDADE_TEXTO_CANAL = 0.5;
+const ESPACO_ENTRE_MARCA_E_CANAL = 10;
 const ROTULO_COMPOSTO = 'composto';
+const ROTULO_COM_MARCA = 'comMarca';
 const CANAIS_AUDIO_TRANSCRICAO = 1;
 const TAXA_AMOSTRAGEM_TRANSCRICAO = 16000;
 const QUADROS_MINIATURA = '1';
@@ -54,15 +59,31 @@ function montarFiltroGameplayCentral(): string {
   return `[0:v]${recorteCentralVertical()}`;
 }
 
+export function calcularRecorteDoConteudo(regiao: RegiaoWebcam): { largura: number; x: number } {
+  const larguraRestante = Math.max(FRACAO_MINIMA_CONTEUDO, 1 - regiao.largura);
+  const webcamNaEsquerda = regiao.x + regiao.largura / 2 < 0.5;
+
+  return { largura: larguraRestante, x: webcamNaEsquerda ? regiao.x + regiao.largura : 0 };
+}
+
 function montarFiltroWebcamDestaque(
   regiao: RegiaoWebcam = REGIAO_WEBCAM_PADRAO,
-  deslocamentoGameplay: number = DESLOCAMENTO_GAMEPLAY_PADRAO,
+  _deslocamentoGameplay: number = DESLOCAMENTO_GAMEPLAY_PADRAO,
 ): string {
-  const recorteWebcam = `crop=iw*${regiao.largura}:ih*${regiao.altura}:iw*${regiao.x}:ih*${regiao.y}`;
-  const topo = `${recorteWebcam},scale=${LARGURA_VERTICAL}:${ALTURA_WEBCAM}:force_original_aspect_ratio=increase,crop=${LARGURA_VERTICAL}:${ALTURA_WEBCAM}`;
-  const base = `crop=ih*${LARGURA_VERTICAL}/${ALTURA_GAMEPLAY}:ih:(in_w-out_w)*${deslocamentoGameplay}:0,scale=${LARGURA_VERTICAL}:${ALTURA_GAMEPLAY}`;
+  const recorteConteudo = calcularRecorteDoConteudo(regiao);
+  const fundo = `[origemFundo]${fundoDesfocado()}[fundoPronto]`;
+  const camera = `[origemCamera]crop=iw*${regiao.largura}:ih*${regiao.altura}:iw*${regiao.x}:ih*${regiao.y},scale=${LARGURA_VERTICAL}:${ALTURA_WEBCAM}:force_original_aspect_ratio=increase,crop=${LARGURA_VERTICAL}:${ALTURA_WEBCAM}[cameraPronta]`;
+  const conteudo = `[origemConteudo]crop=iw*${recorteConteudo.largura}:ih:iw*${recorteConteudo.x}:0,scale=${LARGURA_VERTICAL}:${ALTURA_GAMEPLAY}:force_original_aspect_ratio=decrease[conteudoPronto]`;
+  const posicaoConteudo = `${ALTURA_WEBCAM}+(${ALTURA_GAMEPLAY}-h)/2`;
 
-  return `[0:v]split=2[origemTopo][origemBase];[origemTopo]${topo}[topoPronto];[origemBase]${base}[basePronta];[topoPronto][basePronta]vstack=inputs=2`;
+  return [
+    '[0:v]split=3[origemFundo][origemCamera][origemConteudo]',
+    fundo,
+    camera,
+    conteudo,
+    '[fundoPronto][cameraPronta]overlay=0:0[comCamera]',
+    `[comCamera][conteudoPronto]overlay=(W-w)/2:${posicaoConteudo}`,
+  ].join(';');
 }
 
 const FILTRO_POR_TEMPLATE: Readonly<
@@ -84,9 +105,41 @@ export function montarFiltroEnquadramento(
   return construtor(regiao, deslocamentoGameplay);
 }
 
-export function montarFiltroMarca(entrada: { readonly rotuloEntrada: string }): string {
+export function escaparTextoParaDrawtext(texto: string): string {
+  return texto
+    .replace(/\\/g, '')
+    .replace(/'/g, '')
+    .replace(/%/g, '')
+    .replace(/:/g, '\\:');
+}
+
+function montarAssinaturaDoCanal(entrada: {
+  readonly rotuloEntrada: string;
+  readonly canal: string;
+  readonly arquivoFonte: string;
+}): string {
   const largura = Math.round(LARGURA_VERTICAL * PROPORCAO_LARGURA_MARCA);
-  return `[1:v]scale=${largura}:-1,format=rgba,colorchannelmixer=aa=${OPACIDADE_MARCA}[marca];[${entrada.rotuloEntrada}][marca]overlay=W-w-${MARGEM_MARCA}:${MARGEM_MARCA}`;
+  const posicaoY = MARGEM_MARCA + largura + ESPACO_ENTRE_MARCA_E_CANAL;
+  const texto = escaparTextoParaDrawtext(entrada.canal);
+  const fonte = escaparCaminhoParaFiltro(entrada.arquivoFonte);
+
+  return `[${entrada.rotuloEntrada}]drawtext=fontfile='${fonte}':text='@${texto}':fontsize=${TAMANHO_FONTE_CANAL}:fontcolor=white@${OPACIDADE_TEXTO_CANAL}:x=w-tw-${MARGEM_MARCA}:y=${posicaoY}`;
+}
+
+export function montarFiltroMarca(entrada: {
+  readonly rotuloEntrada: string;
+  readonly canal?: string;
+  readonly arquivoFonte?: string;
+}): string {
+  const largura = Math.round(LARGURA_VERTICAL * PROPORCAO_LARGURA_MARCA);
+  const sobreposicao = `[1:v]scale=${largura}:-1,format=rgba,colorchannelmixer=aa=${OPACIDADE_MARCA}[marca];[${entrada.rotuloEntrada}][marca]overlay=W-w-${MARGEM_MARCA}:${MARGEM_MARCA}`;
+  if (!entrada.canal || !entrada.arquivoFonte) return sobreposicao;
+
+  return `${sobreposicao}[${ROTULO_COM_MARCA}];${montarAssinaturaDoCanal({
+    rotuloEntrada: ROTULO_COM_MARCA,
+    canal: entrada.canal,
+    arquivoFonte: entrada.arquivoFonte,
+  })}`;
 }
 
 function escaparCaminhoParaFiltro(caminho: string): string {
@@ -124,7 +177,11 @@ export function montarCadeiaEnquadramento(entrada: EntradaEnquadramento): string
     : enquadramento;
   if (!entrada.caminhoMarca) return comLegenda;
 
-  return `${comLegenda}[${ROTULO_COMPOSTO}];${montarFiltroMarca({ rotuloEntrada: ROTULO_COMPOSTO })}`;
+  return `${comLegenda}[${ROTULO_COMPOSTO}];${montarFiltroMarca({
+    rotuloEntrada: ROTULO_COMPOSTO,
+    canal: entrada.nomeDoCanal,
+    arquivoFonte: entrada.arquivoFonte,
+  })}`;
 }
 
 function montarEntradasDeMidia(entrada: EntradaEnquadramento): readonly string[] {

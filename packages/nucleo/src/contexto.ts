@@ -18,6 +18,7 @@ import { criarAvisoConexaoRedis } from './avisoConexao.js';
 import { criarRegistroLog, type RegistroLog } from './registroLog.js';
 
 const CAMINHO_MARCA = 'ativos/marca.png';
+const CAMINHO_CONFIGURACAO_FONTES = 'ativos/fonts.conf';
 
 export type ContextoAplicacao = {
   readonly ambiente: Ambiente;
@@ -52,6 +53,7 @@ export function criarContextoAplicacao(servico: string): ContextoAplicacao {
     video: new ServicoVideoFfmpeg({
       caminhoFfmpeg: ambiente.FFMPEG_CAMINHO,
       caminhoFfprobe: ambiente.FFPROBE_CAMINHO,
+      caminhoConfiguracaoFontes: resolverAPartirDaRaiz(CAMINHO_CONFIGURACAO_FONTES),
     }),
     resolvedorFluxo: new ResolvedorFluxoStreamlink({ caminhoStreamlink: ambiente.STREAMLINK_CAMINHO }),
     log,

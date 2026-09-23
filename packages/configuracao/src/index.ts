@@ -78,6 +78,7 @@ const esquemaAmbiente = z.object({
   TRANSCRICAO_MODELO: z.string().default('small'),
   TRANSCRICAO_IDIOMA: z.string().default('pt'),
   LEGENDA_FONTE: z.string().default('Arial'),
+  LEGENDA_ARQUIVO_FONTE: z.string().default('C:/Windows/Fonts/arial.ttf'),
 });
 
 export type Ambiente = z.infer<typeof esquemaAmbiente>;

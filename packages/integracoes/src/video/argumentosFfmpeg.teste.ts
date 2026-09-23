@@ -5,6 +5,8 @@ import {
   montarArgumentosEnquadramento,
   montarArgumentosMiniatura,
   montarArgumentosRecorte,
+  calcularRecorteDoConteudo,
+  escaparTextoParaDrawtext,
   montarCadeiaEnquadramento,
   montarFiltroEnquadramento,
 } from './argumentosFfmpeg.js';
@@ -68,9 +70,15 @@ describe('filtros de enquadramento vertical', () => {
     expect(filtro).not.toContain('boxblur');
   });
 
-  it('webcam em destaque empilha duas faixas', () => {
+  it('webcam em destaque compoe camera em cima e conteudo embaixo', () => {
     const filtro = montarFiltroEnquadramento(TemplateEnquadramento.WEBCAM_DESTAQUE);
-    expect(filtro).toContain('vstack=inputs=2');
+    expect(filtro).toContain('[cameraPronta]overlay=0:0');
+    expect(filtro).toContain('[conteudoPronto]overlay=');
+  });
+
+  it('preserva a cena no conteudo, sem recorte quase quadrado', () => {
+    const filtro = montarFiltroEnquadramento(TemplateEnquadramento.WEBCAM_DESTAQUE);
+    expect(filtro).toContain('force_original_aspect_ratio=decrease');
   });
 
   it('webcam em destaque recorta a região configurada do canal', () => {
@@ -89,16 +97,15 @@ describe('filtros de enquadramento vertical', () => {
     expect(filtro).toContain(`crop=iw*${REGIAO_WEBCAM_PADRAO.largura}:ih*${REGIAO_WEBCAM_PADRAO.altura}`);
   });
 
-  it('a soma das duas faixas preenche a altura vertical inteira', () => {
+  it('posiciona o conteúdo abaixo da faixa da câmera', () => {
     const filtro = montarFiltroEnquadramento(TemplateEnquadramento.WEBCAM_DESTAQUE);
-    const alturas = [...filtro.matchAll(new RegExp(`crop=${LARGURA_VERTICAL}:(\\d+)`, 'g'))].map((item) =>
-      Number(item[1]),
-    );
-    const escalas = [...filtro.matchAll(new RegExp(`scale=${LARGURA_VERTICAL}:(\\d+)`, 'g'))].map((item) =>
-      Number(item[1]),
+    const alturaCamera = Number(
+      new RegExp(`crop=${LARGURA_VERTICAL}:(\\d+)\\[cameraPronta\\]`).exec(filtro)?.[1] ?? 0,
     );
 
-    expect(alturas[0]! + escalas[escalas.length - 1]!).toBe(ALTURA_VERTICAL);
+    expect(alturaCamera).toBeGreaterThan(0);
+    expect(alturaCamera).toBeLessThan(ALTURA_VERTICAL);
+    expect(filtro).toContain(`overlay=(W-w)/2:${alturaCamera}+`);
   });
 
   it('cai no template padrão quando o valor é desconhecido', () => {
@@ -197,5 +204,66 @@ describe('sobreposição da marca', () => {
     });
 
     expect(cadeia.indexOf('subtitles=')).toBeLessThan(cadeia.indexOf('overlay=W-w'));
+  });
+});
+
+describe('recorte do conteudo fora da webcam', () => {
+  it('comeca depois da webcam quando ela esta na esquerda', () => {
+    const recorte = calcularRecorteDoConteudo({ x: 0, y: 0, largura: 0.3, altura: 0.31 });
+    expect(recorte.x).toBeCloseTo(0.3);
+    expect(recorte.largura).toBeCloseTo(0.7);
+  });
+
+  it('comeca do zero quando a webcam esta na direita', () => {
+    const recorte = calcularRecorteDoConteudo({ x: 0.7, y: 0, largura: 0.3, altura: 0.3 });
+    expect(recorte.x).toBe(0);
+    expect(recorte.largura).toBeCloseTo(0.7);
+  });
+
+  it('nao deixa o conteudo sumir quando a webcam ocupa quase tudo', () => {
+    const recorte = calcularRecorteDoConteudo({ x: 0, y: 0, largura: 0.95, altura: 0.9 });
+    expect(recorte.largura).toBeGreaterThan(0.3);
+  });
+});
+
+describe('assinatura do canal', () => {
+  it('escreve o nome do canal com arroba', () => {
+    const cadeia = montarCadeiaEnquadramento({
+      caminhoOrigem: ORIGEM,
+      caminhoDestino: DESTINO,
+      template: TemplateEnquadramento.WEBCAM_DESTAQUE,
+      caminhoMarca: '/tmp/marca.png',
+      nomeDoCanal: 'brabox',
+      arquivoFonte: '/tmp/arial.ttf',
+    });
+
+    expect(cadeia).toContain("text='@brabox'");
+  });
+
+  it('nao escreve nada sem arquivo de fonte, que derruba o ffmpeg', () => {
+    const cadeia = montarCadeiaEnquadramento({
+      caminhoOrigem: ORIGEM,
+      caminhoDestino: DESTINO,
+      template: TemplateEnquadramento.WEBCAM_DESTAQUE,
+      caminhoMarca: '/tmp/marca.png',
+      nomeDoCanal: 'brabox',
+    });
+
+    expect(cadeia).not.toContain('drawtext');
+  });
+
+  it('nao escreve nada quando o canal nao e informado', () => {
+    const cadeia = montarCadeiaEnquadramento({
+      caminhoOrigem: ORIGEM,
+      caminhoDestino: DESTINO,
+      template: TemplateEnquadramento.WEBCAM_DESTAQUE,
+      caminhoMarca: '/tmp/marca.png',
+    });
+
+    expect(cadeia).not.toContain('drawtext');
+  });
+
+  it('remove aspas do nome, que quebrariam o filtro', () => {
+    expect(escaparTextoParaDrawtext("bra'box")).toBe('brabox');
   });
 });
