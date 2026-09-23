@@ -36,6 +36,15 @@ const esquemaAmbiente = z.object({
   FFMPEG_CAMINHO: z.string().default('ffmpeg'),
   FFPROBE_CAMINHO: z.string().default('ffprobe'),
 
+  CAPTURA_ATIVA: z
+    .string()
+    .default('false')
+    .transform((valor) => valor === 'true'),
+  CAPTURA_DIRETORIO: z.string().default('./captura'),
+  CAPTURA_RETENCAO_MINUTOS: z.coerce.number().int().min(1).max(120).default(15),
+  CAPTURA_ATRASO_TRANSMISSAO_SEGUNDOS: z.coerce.number().int().min(0).max(120).default(12),
+  STREAMLINK_CAMINHO: z.string().default('streamlink'),
+
   IA_PROVEDOR: z.string().default('mock'),
   IA_API_KEY: z.string().default(''),
   IA_MODELO: z.string().default('claude-sonnet-5'),

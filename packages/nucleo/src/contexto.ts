@@ -4,7 +4,9 @@ import { criarConexaoRedis, ProdutorFilas } from '@cutpro/filas';
 import {
   criarServicoArmazenamento,
   FabricaPlataformas,
+  ResolvedorFluxoStreamlink,
   ServicoVideoFfmpeg,
+  type ResolvedorFluxoAoVivo,
   type ServicoArmazenamentoArquivo,
   type ServicoVideo,
 } from '@cutpro/integracoes';
@@ -19,8 +21,10 @@ export type ContextoAplicacao = {
   readonly plataformas: FabricaPlataformas;
   readonly armazenamento: ServicoArmazenamentoArquivo;
   readonly video: ServicoVideo;
+  readonly resolvedorFluxo: ResolvedorFluxoAoVivo;
   readonly log: RegistroLog;
   readonly diretorioArmazenamentoLocal: string;
+  readonly diretorioCaptura: string;
   encerrar(): Promise<void>;
 };
 
@@ -30,6 +34,7 @@ export function criarContextoAplicacao(servico: string): ContextoAplicacao {
   const conexaoRedis = criarConexaoRedis(ambiente.REDIS_URL, criarAvisoConexaoRedis(log));
   const filas = new ProdutorFilas(conexaoRedis);
   const diretorioArmazenamentoLocal = resolve(process.cwd(), ambiente.ARMAZENAMENTO_LOCAL_DIRETORIO);
+  const diretorioCaptura = resolve(process.cwd(), ambiente.CAPTURA_DIRETORIO);
 
   return {
     ambiente,
@@ -41,8 +46,10 @@ export function criarContextoAplicacao(servico: string): ContextoAplicacao {
       caminhoFfmpeg: ambiente.FFMPEG_CAMINHO,
       caminhoFfprobe: ambiente.FFPROBE_CAMINHO,
     }),
+    resolvedorFluxo: new ResolvedorFluxoStreamlink({ caminhoStreamlink: ambiente.STREAMLINK_CAMINHO }),
     log,
     diretorioArmazenamentoLocal,
+    diretorioCaptura,
     encerrar: async () => {
       await filas.encerrar();
       conexaoRedis.disconnect();

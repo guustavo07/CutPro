@@ -3,6 +3,7 @@ import { NomeFila, NomeJob } from '@cutpro/contratos';
 import type { ProdutorFilas } from '@cutpro/filas';
 import { ErroPlataforma, type CanalExterno, type FabricaPlataformas } from '@cutpro/integracoes';
 import type { RegistroLog } from '@cutpro/nucleo';
+import type { CapturaLives } from './capturaLives.js';
 import type { ColetorChat } from './coletorChat.js';
 import { EtapaPipeline, type RegistroEventos } from './registroEventos.js';
 
@@ -22,6 +23,7 @@ export class ServicoMonitoramentoLives {
     private readonly prisma: PrismaClient,
     private readonly plataformas: FabricaPlataformas,
     private readonly coletor: ColetorChat,
+    private readonly captura: CapturaLives,
     private readonly filas: ProdutorFilas,
     private readonly eventos: RegistroEventos,
     private readonly log: RegistroLog,
@@ -94,6 +96,11 @@ export class ServicoMonitoramentoLives {
       canalExterno,
       plataforma,
     });
+    await this.captura.garantirCaptura({
+      liveId: live.id,
+      canal: canal.nome,
+      plataforma: canal.plataforma,
+    });
     await this.agendarAnalise(live.id);
   }
 
@@ -161,6 +168,7 @@ export class ServicoMonitoramentoLives {
     if (!live) return;
 
     await this.coletor.encerrarColeta(live.id);
+    await this.captura.encerrarCaptura(live.id);
     await this.prisma.live.update({
       where: { id: live.id },
       data: { status: StatusLive.ENCERRADA, fim: new Date() },

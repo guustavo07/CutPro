@@ -27,7 +27,13 @@ export type EntradaMiniatura = {
   readonly instanteSegundos: number;
 };
 
+export type EntradaConcatenacao = {
+  readonly caminhoLista: string;
+  readonly caminhoDestino: string;
+};
+
 export interface ServicoVideo {
+  concatenar(entrada: EntradaConcatenacao): Promise<void>;
   recortar(entrada: EntradaRecorte): Promise<void>;
   enquadrarVertical(entrada: EntradaEnquadramento): Promise<void>;
   gerarMiniatura(entrada: EntradaMiniatura): Promise<void>;

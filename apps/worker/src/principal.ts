@@ -10,6 +10,7 @@ import {
 import { criarConexaoRedis } from '@cutpro/filas';
 import { criarContextoAplicacao, type ContextoAplicacao } from '@cutpro/nucleo';
 import { Worker } from 'bullmq';
+import { CapturaLives } from './servicos/capturaLives.js';
 import { ColetorChat } from './servicos/coletorChat.js';
 import { RegistroEventos } from './servicos/registroEventos.js';
 import { ServicoAnaliseMomentos } from './servicos/servicoAnaliseMomentos.js';
@@ -24,13 +25,27 @@ const SINAIS_ENCERRAMENTO = ['SIGINT', 'SIGTERM'] as const;
 function montarServicos(contexto: ContextoAplicacao) {
   const eventos = new RegistroEventos(contexto.prisma);
   const coletor = new ColetorChat(contexto.prisma, eventos, contexto.log);
+  const captura = new CapturaLives(
+    contexto.resolvedorFluxo,
+    contexto.video,
+    {
+      ativa: contexto.ambiente.CAPTURA_ATIVA,
+      caminhoFfmpeg: contexto.ambiente.FFMPEG_CAMINHO,
+      diretorioBase: contexto.diretorioCaptura,
+      retencaoMinutos: contexto.ambiente.CAPTURA_RETENCAO_MINUTOS,
+      atrasoTransmissaoSegundos: contexto.ambiente.CAPTURA_ATRASO_TRANSMISSAO_SEGUNDOS,
+    },
+    contexto.log,
+  );
 
   return {
     coletor,
+    captura,
     monitoramento: new ServicoMonitoramentoLives(
       contexto.prisma,
       contexto.plataformas,
       coletor,
+      captura,
       contexto.filas,
       eventos,
       contexto.log,
@@ -41,6 +56,7 @@ function montarServicos(contexto: ContextoAplicacao) {
       {
         video: contexto.video,
         armazenamento: contexto.armazenamento,
+        captura,
         eventos,
         log: contexto.log,
       },
@@ -92,7 +108,7 @@ async function iniciar(): Promise<void> {
   });
 
   contexto.log.info({ modoSimulado: contexto.ambiente.PLATAFORMA_MODO_SIMULADO }, 'Worker do CutPro iniciado');
-  configurarEncerramento({ contexto, workers, coletor: servicos.coletor });
+  configurarEncerramento({ contexto, workers, coletor: servicos.coletor, captura: servicos.captura });
 }
 
 function registrarFalhas(contexto: ContextoAplicacao, workers: readonly Worker[]): void {
@@ -107,11 +123,13 @@ function configurarEncerramento(entrada: {
   readonly contexto: ContextoAplicacao;
   readonly workers: readonly Worker[];
   readonly coletor: ColetorChat;
+  readonly captura: CapturaLives;
 }): void {
   for (const sinal of SINAIS_ENCERRAMENTO) {
     process.once(sinal, () => {
       void (async () => {
         await entrada.coletor.encerrarTudo();
+        await entrada.captura.encerrarTudo();
         await Promise.all(entrada.workers.map((worker) => worker.close()));
         await entrada.contexto.encerrar();
         await encerrarClientePrisma();

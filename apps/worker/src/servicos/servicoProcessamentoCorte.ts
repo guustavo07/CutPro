@@ -4,6 +4,7 @@ import type { ServicoArmazenamentoArquivo, ServicoVideo, TemplateEnquadramento }
 import type { RegistroLog } from '@cutpro/nucleo';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { CapturaLives } from './capturaLives.js';
 import { EtapaPipeline, type RegistroEventos } from './registroEventos.js';
 
 const TIPO_CONTEUDO_VIDEO = 'video/mp4';
@@ -11,9 +12,14 @@ const TIPO_CONTEUDO_MINIATURA = 'image/jpeg';
 const PASTA_TRABALHO = 'processamento';
 const PROPORCAO_INSTANTE_MINIATURA = 0.5;
 const MENSAGEM_SEM_VIDEO_BRUTO =
-  'Vídeo bruto não disponível para este corte. A captura da live ainda não está implementada.';
+  'Vídeo bruto indisponível: o trecho não está no buffer de captura ou a captura está desligada.';
 
 type CorteComLive = Prisma.CorteGetPayload<{ include: { live: true } }>;
+
+type OrigemVideo = {
+  readonly caminho: string;
+  readonly inicioSegundos: number;
+};
 
 export class ServicoProcessamentoCorte {
   constructor(
@@ -21,6 +27,7 @@ export class ServicoProcessamentoCorte {
     private readonly dependencias: {
       readonly video: ServicoVideo;
       readonly armazenamento: ServicoArmazenamentoArquivo;
+      readonly captura: CapturaLives;
       readonly eventos: RegistroEventos;
       readonly log: RegistroLog;
     },
@@ -32,21 +39,22 @@ export class ServicoProcessamentoCorte {
     if (!corte) return;
     if (!podeTransicionarCorte(corte.status, StatusCorte.PROCESSANDO)) return;
 
-    if (!corte.caminhoArquivoBruto) {
-      await this.registrarErro(corte, MENSAGEM_SEM_VIDEO_BRUTO);
-      return;
-    }
-
-    await this.executarComSeguranca(corte, corte.caminhoArquivoBruto);
+    await this.executarComSeguranca(corte);
   }
 
-  private async executarComSeguranca(corte: CorteComLive, caminhoBruto: string): Promise<void> {
+  private async executarComSeguranca(corte: CorteComLive): Promise<void> {
     const pasta = join(this.diretorioTrabalho, PASTA_TRABALHO, corte.id);
 
     try {
       await this.atualizarStatus(corte.id, StatusCorte.PROCESSANDO);
       await mkdir(pasta, { recursive: true });
-      await this.renderizar({ corte, caminhoBruto, pasta });
+      const origem = await this.obterVideoBruto(corte, pasta);
+      if (!origem) {
+        await this.registrarErro(corte, MENSAGEM_SEM_VIDEO_BRUTO);
+        return;
+      }
+
+      await this.renderizar({ corte, origem, pasta });
     } catch (erro) {
       await this.registrarErro(corte, erro instanceof Error ? erro.message : String(erro));
     } finally {
@@ -54,20 +62,36 @@ export class ServicoProcessamentoCorte {
     }
   }
 
+  private async obterVideoBruto(corte: CorteComLive, pasta: string): Promise<OrigemVideo | null> {
+    if (corte.caminhoArquivoBruto) {
+      return { caminho: corte.caminhoArquivoBruto, inicioSegundos: corte.inicioSegundos };
+    }
+
+    const janela = await this.dependencias.captura.extrairJanela({
+      liveId: corte.liveId,
+      inicioLive: corte.live.inicio,
+      janela: { inicioSegundos: corte.inicioSegundos, duracaoSegundos: corte.duracaoSegundos },
+      caminhoDestino: join(pasta, 'bruto.mp4'),
+    });
+    if (!janela) return null;
+
+    return { caminho: janela.caminhoArquivo, inicioSegundos: janela.deslocamentoSegundos };
+  }
+
   private async renderizar(entrada: {
     readonly corte: CorteComLive;
-    readonly caminhoBruto: string;
+    readonly origem: OrigemVideo;
     readonly pasta: string;
   }): Promise<void> {
-    const { corte, caminhoBruto, pasta } = entrada;
+    const { corte, origem, pasta } = entrada;
     const trecho = join(pasta, 'trecho.mp4');
     const vertical = join(pasta, 'vertical.mp4');
     const miniatura = join(pasta, 'miniatura.jpg');
 
     await this.dependencias.video.recortar({
-      caminhoOrigem: caminhoBruto,
+      caminhoOrigem: origem.caminho,
       caminhoDestino: trecho,
-      inicioSegundos: corte.inicioSegundos,
+      inicioSegundos: origem.inicioSegundos,
       duracaoSegundos: corte.duracaoSegundos,
     });
 

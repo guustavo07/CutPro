@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { montarArgumentosConcatenacao } from './bufferCircular.js';
 import {
   montarArgumentosDuracao,
   montarArgumentosEnquadramento,
@@ -7,6 +8,7 @@ import {
 } from './argumentosFfmpeg.js';
 import {
   ErroProcessamentoVideo,
+  type EntradaConcatenacao,
   type EntradaEnquadramento,
   type EntradaMiniatura,
   type EntradaRecorte,
@@ -50,6 +52,10 @@ async function executarOuFalhar(comando: string, argumentos: readonly string[]):
 
 export class ServicoVideoFfmpeg implements ServicoVideo {
   constructor(private readonly opcoes: OpcoesServicoVideoFfmpeg) {}
+
+  async concatenar(entrada: EntradaConcatenacao): Promise<void> {
+    await executarOuFalhar(this.opcoes.caminhoFfmpeg, montarArgumentosConcatenacao(entrada));
+  }
 
   async recortar(entrada: EntradaRecorte): Promise<void> {
     await executarOuFalhar(this.opcoes.caminhoFfmpeg, montarArgumentosRecorte(entrada));
