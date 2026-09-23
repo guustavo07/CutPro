@@ -26,6 +26,8 @@ const PROPORCAO_LARGURA_MARCA = 0.13;
 const MARGEM_MARCA = 36;
 const OPACIDADE_MARCA = 0.85;
 const ROTULO_COMPOSTO = 'composto';
+const CANAIS_AUDIO_TRANSCRICAO = 1;
+const TAXA_AMOSTRAGEM_TRANSCRICAO = 16000;
 const QUADROS_MINIATURA = '1';
 const QUALIDADE_MINIATURA = '2';
 
@@ -156,6 +158,28 @@ export function montarArgumentosEnquadramento(entrada: EntradaEnquadramento): re
     TAXA_AUDIO,
     '-movflags',
     '+faststart',
+    entrada.caminhoDestino,
+  ];
+}
+
+export function montarArgumentosExtracaoAudio(entrada: {
+  readonly caminhoOrigem: string;
+  readonly caminhoDestino: string;
+}): readonly string[] {
+  return [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    entrada.caminhoOrigem,
+    '-vn',
+    '-ac',
+    String(CANAIS_AUDIO_TRANSCRICAO),
+    '-ar',
+    String(TAXA_AMOSTRAGEM_TRANSCRICAO),
+    '-c:a',
+    'pcm_s16le',
     entrada.caminhoDestino,
   ];
 }

@@ -4,10 +4,14 @@ import { criarConexaoRedis, ProdutorFilas } from '@cutpro/filas';
 import {
   criarServicoArmazenamento,
   FabricaPlataformas,
+  ProvedorTranscricao,
   ResolvedorFluxoStreamlink,
   ServicoVideoFfmpeg,
+  TranscricaoSimulada,
+  TranscricaoWhisperLocal,
   type ResolvedorFluxoAoVivo,
   type ServicoArmazenamentoArquivo,
+  type ServicoTranscricao,
   type ServicoVideo,
 } from '@cutpro/integracoes';
 import { criarAvisoConexaoRedis } from './avisoConexao.js';
@@ -27,6 +31,7 @@ export type ContextoAplicacao = {
   readonly diretorioArmazenamentoLocal: string;
   readonly diretorioCaptura: string;
   readonly caminhoMarca: string;
+  readonly transcricao: ServicoTranscricao;
   encerrar(): Promise<void>;
 };
 
@@ -53,6 +58,7 @@ export function criarContextoAplicacao(servico: string): ContextoAplicacao {
     diretorioArmazenamentoLocal,
     diretorioCaptura,
     caminhoMarca: resolverAPartirDaRaiz(CAMINHO_MARCA),
+    transcricao: montarTranscricao(ambiente),
     encerrar: async () => {
       await filas.encerrar();
       conexaoRedis.disconnect();
@@ -69,6 +75,16 @@ function montarFabricaPlataformas(ambiente: Ambiente): FabricaPlataformas {
       clientSecret: ambiente.KICK_CLIENT_SECRET,
       chavePusher: ambiente.KICK_PUSHER_APP_KEY,
     },
+  });
+}
+
+function montarTranscricao(ambiente: Ambiente): ServicoTranscricao {
+  if (ambiente.TRANSCRICAO_PROVEDOR !== ProvedorTranscricao.LOCAL) return new TranscricaoSimulada();
+
+  return new TranscricaoWhisperLocal({
+    comando: ambiente.TRANSCRICAO_COMANDO,
+    modelo: ambiente.TRANSCRICAO_MODELO,
+    idioma: ambiente.TRANSCRICAO_IDIOMA,
   });
 }
 

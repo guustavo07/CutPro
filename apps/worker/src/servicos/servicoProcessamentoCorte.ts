@@ -1,9 +1,17 @@
 import { Prisma, StatusCorte, type PrismaClient } from '@cutpro/banco';
 import { interpretarConfiguracaoCanal } from '@cutpro/contratos';
 import { podeTransicionarCorte } from '@cutpro/dominio';
-import type { ServicoArmazenamentoArquivo, ServicoVideo, TemplateEnquadramento } from '@cutpro/integracoes';
+import {
+  montarLegendaAss,
+  ProvedorTranscricao,
+  type ResultadoTranscricao,
+  type ServicoArmazenamentoArquivo,
+  type ServicoTranscricao,
+  type ServicoVideo,
+  type TemplateEnquadramento,
+} from '@cutpro/integracoes';
 import type { RegistroLog } from '@cutpro/nucleo';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CapturaLives } from './capturaLives.js';
 import { EtapaPipeline, type RegistroEventos } from './registroEventos.js';
@@ -30,6 +38,8 @@ export class ServicoProcessamentoCorte {
       readonly armazenamento: ServicoArmazenamentoArquivo;
       readonly captura: CapturaLives;
       readonly caminhoMarca: string;
+      readonly transcricao: ServicoTranscricao;
+      readonly fonteLegenda: string;
       readonly eventos: RegistroEventos;
       readonly log: RegistroLog;
     },
@@ -101,6 +111,10 @@ export class ServicoProcessamentoCorte {
       duracaoSegundos: corte.duracaoSegundos,
     });
 
+    const caminhoLegenda = configuracao.legendasAtivas
+      ? await this.gerarLegenda({ corte, trecho, pasta })
+      : undefined;
+
     await this.atualizarStatus(corte.id, StatusCorte.RENDERIZANDO);
     await this.dependencias.video.enquadrarVertical({
       caminhoOrigem: trecho,
@@ -109,6 +123,7 @@ export class ServicoProcessamentoCorte {
       regiaoWebcam: configuracao.regiaoWebcam,
       deslocamentoGameplay: configuracao.deslocamentoGameplay,
       caminhoMarca: this.dependencias.caminhoMarca,
+      caminhoLegenda,
     });
     await this.dependencias.video.gerarMiniatura({
       caminhoOrigem: vertical,
@@ -117,6 +132,51 @@ export class ServicoProcessamentoCorte {
     });
 
     await this.publicarResultado({ corte, vertical, miniatura });
+  }
+
+  private async gerarLegenda(entrada: {
+    readonly corte: CorteComLive;
+    readonly trecho: string;
+    readonly pasta: string;
+  }): Promise<string | undefined> {
+    const { corte, trecho, pasta } = entrada;
+    if (this.dependencias.transcricao.provedor === ProvedorTranscricao.MOCK) return undefined;
+
+    await this.atualizarStatus(corte.id, StatusCorte.TRANSCREVENDO);
+    const audio = join(pasta, 'audio.wav');
+    await this.dependencias.video.extrairAudio({ caminhoOrigem: trecho, caminhoDestino: audio });
+
+    const transcricao = await this.dependencias.transcricao.transcrever({
+      caminhoMidia: audio,
+      diretorioTrabalho: pasta,
+    });
+    if (transcricao.palavras.length === 0) return undefined;
+
+    await this.persistirTranscricao(corte.id, transcricao);
+    await this.atualizarStatus(corte.id, StatusCorte.GERANDO_LEGENDAS);
+    const caminhoLegenda = join(pasta, 'legenda.ass');
+    await writeFile(
+      caminhoLegenda,
+      montarLegendaAss({ palavras: transcricao.palavras, fonte: this.dependencias.fonteLegenda }),
+      'utf8',
+    );
+
+    return caminhoLegenda;
+  }
+
+  private async persistirTranscricao(corteId: string, transcricao: ResultadoTranscricao): Promise<void> {
+    const dados = {
+      provedor: this.dependencias.transcricao.provedor,
+      idioma: transcricao.idioma,
+      texto: transcricao.texto,
+      palavras: transcricao.palavras as object,
+    };
+
+    await this.prisma.transcricao.upsert({
+      where: { corteId },
+      create: { corteId, ...dados },
+      update: dados,
+    });
   }
 
   private async publicarResultado(entrada: {

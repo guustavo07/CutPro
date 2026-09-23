@@ -37,8 +37,14 @@ export type EntradaConcatenacao = {
   readonly caminhoDestino: string;
 };
 
+export type EntradaExtracaoAudio = {
+  readonly caminhoOrigem: string;
+  readonly caminhoDestino: string;
+};
+
 export interface ServicoVideo {
   concatenar(entrada: EntradaConcatenacao): Promise<void>;
+  extrairAudio(entrada: EntradaExtracaoAudio): Promise<void>;
   recortar(entrada: EntradaRecorte): Promise<void>;
   enquadrarVertical(entrada: EntradaEnquadramento): Promise<void>;
   gerarMiniatura(entrada: EntradaMiniatura): Promise<void>;

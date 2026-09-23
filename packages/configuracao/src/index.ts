@@ -72,8 +72,12 @@ const esquemaAmbiente = z.object({
   IA_PROVEDOR: z.string().default('mock'),
   IA_API_KEY: z.string().default(''),
   IA_MODELO: z.string().default('claude-sonnet-5'),
-  TRANSCRICAO_PROVEDOR: z.string().default('mock'),
+  TRANSCRICAO_PROVEDOR: z.enum(['mock', 'local']).default('mock'),
   TRANSCRICAO_API_KEY: z.string().default(''),
+  TRANSCRICAO_COMANDO: z.string().default('whisper-ctranslate2'),
+  TRANSCRICAO_MODELO: z.string().default('small'),
+  TRANSCRICAO_IDIOMA: z.string().default('pt'),
+  LEGENDA_FONTE: z.string().default('Arial'),
 });
 
 export type Ambiente = z.infer<typeof esquemaAmbiente>;

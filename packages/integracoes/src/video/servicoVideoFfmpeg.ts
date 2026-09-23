@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { montarArgumentosConcatenacao } from './bufferCircular.js';
 import {
   montarArgumentosDuracao,
+  montarArgumentosExtracaoAudio,
   montarArgumentosEnquadramento,
   montarArgumentosMiniatura,
   montarArgumentosRecorte,
@@ -10,6 +11,7 @@ import {
   ErroProcessamentoVideo,
   type EntradaConcatenacao,
   type EntradaEnquadramento,
+  type EntradaExtracaoAudio,
   type EntradaMiniatura,
   type EntradaRecorte,
   type ServicoVideo,
@@ -55,6 +57,10 @@ export class ServicoVideoFfmpeg implements ServicoVideo {
 
   async concatenar(entrada: EntradaConcatenacao): Promise<void> {
     await executarOuFalhar(this.opcoes.caminhoFfmpeg, montarArgumentosConcatenacao(entrada));
+  }
+
+  async extrairAudio(entrada: EntradaExtracaoAudio): Promise<void> {
+    await executarOuFalhar(this.opcoes.caminhoFfmpeg, montarArgumentosExtracaoAudio(entrada));
   }
 
   async recortar(entrada: EntradaRecorte): Promise<void> {

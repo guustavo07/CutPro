@@ -58,6 +58,8 @@ function montarServicos(contexto: ContextoAplicacao) {
         armazenamento: contexto.armazenamento,
         captura,
         caminhoMarca: contexto.caminhoMarca,
+        transcricao: contexto.transcricao,
+        fonteLegenda: contexto.ambiente.LEGENDA_FONTE,
         eventos,
         log: contexto.log,
       },

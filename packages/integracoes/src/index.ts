@@ -19,3 +19,5 @@ export * from './video/servicoVideoFfmpeg.js';
 export * from './video/resolvedorFluxo.js';
 export * from './video/bufferCircular.js';
 export * from './transcricao/legendaAss.js';
+export * from './transcricao/tipos.js';
+export * from './transcricao/transcricaoWhisperLocal.js';
