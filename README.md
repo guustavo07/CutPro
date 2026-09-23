@@ -181,6 +181,7 @@ o momento mas não cria o corte.
 ## Documentação
 
 - [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — decisões, modelo de dados, fluxo, escala
+- [docs/PREPARO_DE_CORTE.md](docs/PREPARO_DE_CORTE.md) — calibrar enquadramento por canal antes de publicar
 - [docs/LIMITACOES.md](docs/LIMITACOES.md) — o que as plataformas não permitem
 - [CLAUDE.md](CLAUDE.md) — regras de código do projeto
 - [CODE_REVIEW.md](CODE_REVIEW.md) — protocolo de review antes do merge na main

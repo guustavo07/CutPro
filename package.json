@@ -19,7 +19,9 @@
     "banco:migrar": "npm run migrar --workspace @cutpro/banco",
     "banco:estudio": "npm run estudio --workspace @cutpro/banco",
     "teste": "npm run teste --workspaces --if-present",
-    "lint": "tsc --noEmit -p tsconfig.base.json"
+    "lint": "tsc --noEmit -p tsconfig.base.json",
+    "calibrar": "tsx scripts/calibrarEnquadramento.ts",
+    "marca:gerar": "tsx scripts/gerarMarca.ts"
   },
   "devDependencies": {
     "typescript": "5.6.3",
