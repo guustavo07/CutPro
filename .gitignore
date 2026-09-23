@@ -23,3 +23,5 @@ apps/painel/.vite/
 apps/painel/tsconfig.tsbuildinfo
 
 .claude/
+CLAUDE.md
+CODE_REVIEW.md
