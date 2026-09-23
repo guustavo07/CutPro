@@ -3,8 +3,9 @@ import { USUARIOS_DISTINTOS_MINIMO_RISADA_COLETIVA } from '../constantes/chat.js
 import { CategoriaReacao } from '../enums/categoriaReacao.js';
 import {
   calcularBonusRisadaColetiva,
+  calcularScoreChat,
   possuiRisadaColetiva,
-} from './analisadorMomentos.js';
+} from './detectorPicos.js';
 import { construirBucketsChat, type MensagemAnalisada } from './serieTemporalChat.js';
 
 function mensagemComEmote(usuario: string, instanteSegundos: number): MensagemAnalisada {
@@ -29,6 +30,34 @@ describe('limiar de risada coletiva', () => {
 
   it('concede bônus a partir do limiar', () => {
     expect(calcularBonusRisadaColetiva(3)).toBeGreaterThan(0);
+  });
+});
+
+describe('bônus aplicado antes do portão de pico', () => {
+  it('soma o bônus ao score de chat do bucket', () => {
+    const semBonus = calcularScoreChat({ scoreVolume: 0.35, densidadeReacao: 1 });
+    const comBonus = calcularScoreChat({
+      scoreVolume: 0.35,
+      densidadeReacao: 1,
+      bonusRisadaColetiva: calcularBonusRisadaColetiva(24),
+    });
+
+    expect(comBonus).toBeGreaterThan(semBonus);
+  });
+
+  it('não deixa o score de chat passar de 1', () => {
+    const score = calcularScoreChat({ scoreVolume: 1, densidadeReacao: 1, bonusRisadaColetiva: 0.5 });
+    expect(score).toBeLessThanOrEqual(1);
+  });
+
+  it('não altera o score quando não há risada coletiva', () => {
+    const semRisada = calcularScoreChat({
+      scoreVolume: 0.35,
+      densidadeReacao: 1,
+      bonusRisadaColetiva: calcularBonusRisadaColetiva(2),
+    });
+
+    expect(semRisada).toBe(calcularScoreChat({ scoreVolume: 0.35, densidadeReacao: 1 }));
   });
 });
 

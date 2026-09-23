@@ -1,5 +1,6 @@
 import {
   BASELINE_MENSAGENS_MINIMO,
+  BONUS_RISADA_COLETIVA,
   BUCKETS_JANELA_BASELINE,
   BUCKETS_MINIMOS_PARA_BASELINE,
   DURACAO_BUCKET_SEGUNDOS,
@@ -9,6 +10,7 @@ import {
   RAZAO_VOLUME_MINIMA_PARA_PICO,
   SCORE_CHAT_MINIMO_PARA_PICO,
   SEGUNDOS_POR_MINUTO,
+  USUARIOS_DISTINTOS_MINIMO_RISADA_COLETIVA,
 } from '../constantes/chat.js';
 import { CategoriaReacao } from '../enums/categoriaReacao.js';
 import { arredondarScore, limitarScore, mediana } from '../utils/numeros.js';
@@ -21,6 +23,7 @@ export type ConfiguracaoDeteccaoPico = {
   readonly bucketsJanelaBaseline: number;
   readonly razaoVolumeMinima: number;
   readonly scoreChatMinimo: number;
+  readonly fatorSaturacaoVolume: number;
 };
 
 export const CONFIGURACAO_DETECCAO_PICO_PADRAO: ConfiguracaoDeteccaoPico = Object.freeze({
@@ -28,6 +31,7 @@ export const CONFIGURACAO_DETECCAO_PICO_PADRAO: ConfiguracaoDeteccaoPico = Objec
   bucketsJanelaBaseline: BUCKETS_JANELA_BASELINE,
   razaoVolumeMinima: RAZAO_VOLUME_MINIMA_PARA_PICO,
   scoreChatMinimo: SCORE_CHAT_MINIMO_PARA_PICO,
+  fatorSaturacaoVolume: FATOR_SATURACAO_VOLUME,
 });
 
 export type PicoChat = {
@@ -43,9 +47,12 @@ export type PicoChat = {
   readonly usuariosDistintosComEmoteRiso: number;
 };
 
-export function calcularScoreVolume(razaoVolume: number): number {
+export function calcularScoreVolume(
+  razaoVolume: number,
+  fatorSaturacao: number = FATOR_SATURACAO_VOLUME,
+): number {
   if (razaoVolume <= 1) return 0;
-  return limitarScore(1 - Math.exp(-FATOR_SATURACAO_VOLUME * (razaoVolume - 1)));
+  return limitarScore(1 - Math.exp(-fatorSaturacao * (razaoVolume - 1)));
 }
 
 export function calcularDensidadeReacao(bucket: BucketChat, baselineMensagens: number): number {
@@ -59,13 +66,22 @@ export function calcularDensidadeReacao(bucket: BucketChat, baselineMensagens: n
   return limitarScore(bucket.somaScoreReacao / mensagensExcedentes);
 }
 
+export function possuiRisadaColetiva(usuariosDistintosComEmoteRiso: number): boolean {
+  return usuariosDistintosComEmoteRiso >= USUARIOS_DISTINTOS_MINIMO_RISADA_COLETIVA;
+}
+
+export function calcularBonusRisadaColetiva(usuariosDistintosComEmoteRiso: number): number {
+  return possuiRisadaColetiva(usuariosDistintosComEmoteRiso) ? BONUS_RISADA_COLETIVA : 0;
+}
+
 export function calcularScoreChat(entrada: {
   readonly scoreVolume: number;
   readonly densidadeReacao: number;
+  readonly bonusRisadaColetiva?: number;
 }): number {
   const combinado =
     entrada.scoreVolume * PESO_VOLUME_NO_SCORE_CHAT + entrada.densidadeReacao * PESO_DENSIDADE_NO_SCORE_CHAT;
-  return arredondarScore(combinado);
+  return arredondarScore(limitarScore(combinado + (entrada.bonusRisadaColetiva ?? 0)));
 }
 
 function calcularBaseline(anteriores: readonly BucketChat[]): number {
@@ -90,9 +106,13 @@ function avaliarBucket(entrada: {
   const razaoVolume = bucket.quantidadeMensagens / baseline;
   if (razaoVolume < configuracao.razaoVolumeMinima) return null;
 
-  const scoreVolume = calcularScoreVolume(razaoVolume);
+  const scoreVolume = calcularScoreVolume(razaoVolume, configuracao.fatorSaturacaoVolume);
   const densidadeReacao = calcularDensidadeReacao(bucket, baseline);
-  const scoreChat = calcularScoreChat({ scoreVolume, densidadeReacao });
+  const scoreChat = calcularScoreChat({
+    scoreVolume,
+    densidadeReacao,
+    bonusRisadaColetiva: calcularBonusRisadaColetiva(bucket.usuariosDistintosComEmoteRiso),
+  });
   if (scoreChat < configuracao.scoreChatMinimo) return null;
 
   return montarPico({ bucket, baseline, razaoVolume, scoreVolume, densidadeReacao, scoreChat, configuracao });

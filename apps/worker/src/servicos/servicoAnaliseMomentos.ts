@@ -1,4 +1,4 @@
-import { Prisma, StatusCorte, StatusLive, type PrismaClient } from '@cutpro/banco';
+import { CategoriaReacao, Prisma, StatusCorte, StatusLive, type PrismaClient } from '@cutpro/banco';
 import { interpretarConfiguracaoCanal, NomeFila, NomeJob, type ConfiguracaoCanal } from '@cutpro/contratos';
 import {
   analisarMomentosPorBuckets,
@@ -17,6 +17,31 @@ import { EtapaPipeline, type RegistroEventos } from './registroEventos.js';
 const MILISSEGUNDOS_POR_SEGUNDO = 1000;
 
 type LiveComCanal = Prisma.LiveGetPayload<{ include: { canal: true } }>;
+
+function montarBucketVazio(indice: number): BucketChat {
+  return {
+    indice,
+    inicioSegundos: indice * DURACAO_BUCKET_SEGUNDOS,
+    quantidadeMensagens: 0,
+    quantidadeMensagensComReacao: 0,
+    somaScoreReacao: 0,
+    categoriaDominante: CategoriaReacao.NEUTRO,
+    usuariosDistintosComEmoteRiso: 0,
+  };
+}
+
+function preencherSlotsSemMensagem(gravados: ReadonlyMap<number, BucketChat>): BucketChat[] {
+  const indices = [...gravados.keys()];
+  const primeiro = Math.min(...indices);
+  const ultimo = Math.max(...indices);
+  const serie: BucketChat[] = [];
+
+  for (let indice = primeiro; indice <= ultimo; indice += 1) {
+    serie.push(gravados.get(indice) ?? montarBucketVazio(indice));
+  }
+
+  return serie;
+}
 
 function montarConfiguracaoAnalise(configuracao: ConfiguracaoCanal): ConfiguracaoAnaliseMomentos {
   const perfil = PERFIL_POR_MODO_PROCESSAMENTO[configuracao.modoProcessamento];
@@ -68,17 +93,25 @@ export class ServicoAnaliseMomentos {
       where: { liveId },
       orderBy: { indice: 'asc' },
     });
-    const usuariosPorBucket = await this.contarUsuariosComEmoteRiso(liveId);
+    if (registros.length === 0) return [];
 
-    return registros.map((registro) => ({
-      indice: registro.indice,
-      inicioSegundos: registro.inicioSegundos,
-      quantidadeMensagens: registro.quantidadeMensagens,
-      quantidadeMensagensComReacao: registro.quantidadeMensagensComReacao,
-      somaScoreReacao: Number(registro.somaScoreReacao),
-      categoriaDominante: registro.categoriaDominante,
-      usuariosDistintosComEmoteRiso: usuariosPorBucket.get(registro.indice) ?? 0,
-    }));
+    const usuariosPorBucket = await this.contarUsuariosComEmoteRiso(liveId);
+    const gravados = new Map(
+      registros.map((registro) => [
+        registro.indice,
+        {
+          indice: registro.indice,
+          inicioSegundos: registro.inicioSegundos,
+          quantidadeMensagens: registro.quantidadeMensagens,
+          quantidadeMensagensComReacao: registro.quantidadeMensagensComReacao,
+          somaScoreReacao: Number(registro.somaScoreReacao),
+          categoriaDominante: registro.categoriaDominante,
+          usuariosDistintosComEmoteRiso: usuariosPorBucket.get(registro.indice) ?? 0,
+        },
+      ]),
+    );
+
+    return preencherSlotsSemMensagem(gravados);
   }
 
   private async contarUsuariosComEmoteRiso(liveId: string): Promise<Map<number, number>> {

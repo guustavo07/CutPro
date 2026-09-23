@@ -1,8 +1,6 @@
 import {
-  BONUS_RISADA_COLETIVA,
   DISTANCIA_MINIMA_ENTRE_MOMENTOS_SEGUNDOS,
   INTERVALO_AGRUPAMENTO_PICOS_SEGUNDOS,
-  USUARIOS_DISTINTOS_MINIMO_RISADA_COLETIVA,
 } from '../constantes/chat.js';
 import { CORTES_MAXIMOS_POR_LIVE_PADRAO } from '../constantes/janelaCorte.js';
 import {
@@ -22,6 +20,7 @@ import { calcularClipScore } from './clipScore.js';
 import {
   CONFIGURACAO_DETECCAO_PICO_PADRAO,
   detectarPicosChat,
+  possuiRisadaColetiva,
   type ConfiguracaoDeteccaoPico,
 } from './detectorPicos.js';
 import {
@@ -31,7 +30,6 @@ import {
   type JanelaCorte,
 } from './janelaCorte.js';
 import { construirBucketsChat, type BucketChat, type MensagemAnalisada } from './serieTemporalChat.js';
-import { limitarScore } from '../utils/numeros.js';
 
 const DENSIDADE_REACAO_ALTA = 0.7;
 const RAZAO_VOLUME_MUITO_ALTA = 5;
@@ -69,14 +67,6 @@ export type MomentoAnalisado = {
   readonly motivos: readonly string[];
 };
 
-export function possuiRisadaColetiva(usuariosDistintosComEmoteRiso: number): boolean {
-  return usuariosDistintosComEmoteRiso >= USUARIOS_DISTINTOS_MINIMO_RISADA_COLETIVA;
-}
-
-export function calcularBonusRisadaColetiva(usuariosDistintosComEmoteRiso: number): number {
-  return possuiRisadaColetiva(usuariosDistintosComEmoteRiso) ? BONUS_RISADA_COLETIVA : 0;
-}
-
 function descreverVolume(candidato: MomentoCandidato): string {
   const principal = candidato.picoPrincipal;
   const mensagensPorMinuto = Math.round(principal.mensagensPorMinuto);
@@ -113,9 +103,6 @@ function analisarCandidato(entrada: {
 }): MomentoAnalisado {
   const { candidato, configuracao } = entrada;
   const principal = candidato.picoPrincipal;
-  const sinalChat = limitarScore(
-    candidato.scoreChat + calcularBonusRisadaColetiva(candidato.usuariosDistintosComEmoteRiso),
-  );
 
   return {
     instantePicoSegundos: candidato.instantePicoSegundos,
@@ -125,7 +112,7 @@ function analisarCandidato(entrada: {
       limiteSuperiorSegundos: entrada.duracaoLiveSegundos,
     }),
     chatScore: candidato.scoreChat,
-    clipScore: calcularClipScore({ [SinalClipScore.CHAT]: sinalChat }, configuracao.pesos),
+    clipScore: calcularClipScore({ [SinalClipScore.CHAT]: candidato.scoreChat }, configuracao.pesos),
     categoriaDominante: candidato.categoriaDominante,
     quantidadeMensagens: candidato.quantidadeMensagens,
     mensagensPorMinuto: Math.round(principal.mensagensPorMinuto),
